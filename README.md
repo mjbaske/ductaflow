@@ -25,16 +25,23 @@ The pipeline management pattern works as follows:
 
 ```
 ductaflow/
-├── flow/           # Source .py notebook files
+├── code/                                # place to include other reference code
+│   ├── ductacore.py                     # core functions of ductaflow
+├── flow/                                # Source .py notebook files
 │   ├── 01_data_prep.py
 │   ├── 02_analysis.py  
 │   └── 03_outputs.py
-└── runs/               # Execution instances
+└── runs/                                # Execution instances
     ├── run_20250826_09/
-    │   ├── CONFIG.json              # Run configuration
-    │   ├── 01_data_prep_executed.ipynb    # Execution artifacts
+    │   ├── CONFIG.json                  # Run configuration
+    │   ├── 01_data_prep_executed.ipynb  # Execution artifacts
     │   ├── 02_analysis_executed.ipynb
-    │   └── outputs/                       # Generated outputs
+    │   └── outputs/                     # Generated outputs
     └── run_20250827_10/
         └── ...
 └── conductor.py              # notebook for chaining or running many instances of a flow
+
+## Notes
+- config dict always gets passed and all keys that dont have a nested dict as their value become local variables in the executed instance
+- record of config.json always stored in run folder
+- config values displayed as markdown at top of executed notebook
