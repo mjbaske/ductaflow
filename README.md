@@ -25,7 +25,7 @@ The pipeline management pattern works as follows:
 
 ```
 ductaflow/
-├── code/                                # place to include other reference code
+├── code/                                # Also a place to include other reference code (if desired)
 │   ├── ductacore.py                     # core functions of ductaflow
 ├── flow/                                # Source .py notebook files
 │   ├── 01_data_prep.py
@@ -45,3 +45,4 @@ ductaflow/
 - config dict always gets passed and all keys that dont have a nested dict as their value become local variables in the executed instance
 - record of config.json always stored in run folder
 - config values displayed as markdown at top of executed notebook
+- if you have a custom output location you will need to have ductacore accesible to python so need to update the sys.path.append('../../code') line in the flow you are making
