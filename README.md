@@ -1,6 +1,6 @@
 # ductaflow
-A Simple, Useful Model Instance Execution Pattern
-This framework provides a robust system for creating and managing analytical pipelines using Jupytext .py files that are executed as notebooks with full state capture.
+A simple, useful, model instance execution pattern.
+This framework provides a robust system for creating and managing pipelines of code using Jupytext .py files that are executed as notebooks with full state capture and record keeping.
 
 ## Core Concept
 
