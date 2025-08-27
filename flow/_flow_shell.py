@@ -20,13 +20,13 @@ import numpy as np
 # need to ensure the output flow has access to your ductaflow code folder otherwise
 
 sys.path.append('../../code')
-
+pipeline_name = 'Flow Shell'
 # Import pipeline framework for configuration display
 try:
     from ductacore import display_config_summary
     # Display the injected configuration if available
     if 'config' in locals():
-        display_config_summary(config, "[flow Name]")
+        display_config_summary(config, pipeline_name)
     else:
         print("⚠️  No configuration found - running in standalone mode")
 except ImportError:
@@ -72,12 +72,12 @@ for i in range(3):
 # %%
 # Export key variables for potential pipeline use (standardized approach)
 flow_results = {
-    "flow_name": "[flow_name]",
+    "flow_name": pipeline_name,
     "config_loaded": 'config' in locals(),
     "execution_timestamp": datetime.now().isoformat(),
     "success": True  # Set to False if any issues occurred
 }
 
-print(f"🎯 [flow Name] completed successfully!" if flow_results["success"] else "⚠️  [flow Name] completed with issues")
+print(f"🎯 {pipeline_name} completed successfully!" if flow_results["success"] else "⚠️  [flow Name] completed with issues")
 
 # %%

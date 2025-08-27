@@ -63,13 +63,13 @@ except ImportError:
 # ## Configuration Display Functions
 
 # %%
-def generate_config_markdown(config: Dict[str, Any], step_name: str = None) -> str:
+def generate_config_markdown(config: Dict[str, Any], flow_name: str = None) -> str:
     """
     Generate markdown representation of configuration dictionary.
     
     Args:
         config: Configuration dictionary to display
-        step_name: Optional step name for the header
+        flow_name: Optional step name for the header
     
     Returns:
         Markdown formatted string
@@ -79,8 +79,8 @@ def generate_config_markdown(config: Dict[str, Any], step_name: str = None) -> s
     
     # Start with header if step name provided
     markdown_lines = []
-    if step_name:
-        markdown_lines.append(f"## Configuration for {step_name}\n")
+    if flow_name:
+        markdown_lines.append(f"## Configuration for {flow_name}\n")
     else:
         markdown_lines.append("## Configuration\n")
     
@@ -159,7 +159,7 @@ def generate_config_markdown(config: Dict[str, Any], step_name: str = None) -> s
 
 
 # %%
-def display_config_summary(config: Dict[str, Any], step_name: str = None):
+def display_config_summary(config: Dict[str, Any], flow_name: str = None):
     """
     Display configuration summary in notebook.
     Simple function for notebooks to import and use.
@@ -168,12 +168,12 @@ def display_config_summary(config: Dict[str, Any], step_name: str = None):
     -----------
     config : dict
         Configuration dictionary (from papermill injection)
-    step_name : str, optional
+    flow_name : str, optional
         Name of current processing step
     """
     try:
         from IPython.display import Markdown, display
-        markdown_content = generate_config_markdown(config, step_name)
+        markdown_content = generate_config_markdown(config, flow_name)
         display(Markdown(markdown_content))
     except Exception as e:
         print(f"Error displaying config summary: {e}")
@@ -315,7 +315,7 @@ def run_notebook(notebook_file: Union[str, Path],
     
     Args:
         notebook_file: Path to the .py notebook file to execute
-        config_path: Path to JSON configuration file
+        config: Dictionary of config vars 
         notebooks_dir: Directory containing notebook files (defaults to current working directory)
         output_suffix: Suffix for output notebook filename
         kernel_name: Jupyter kernel to use for execution
@@ -332,7 +332,6 @@ def run_notebook(notebook_file: Union[str, Path],
         raise ImportError("papermill is required for notebook execution. Install with: pip install papermill")
     
     # Setup paths
-    config_path = Path(config_path)
     notebook_file = Path(notebook_file)
     
     if notebooks_dir:

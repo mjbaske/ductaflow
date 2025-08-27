@@ -24,7 +24,7 @@ except ImportError as e:
 # ## Describe One Instance of Calling a flow.py notebook as a Function
 
 # %%
-def run_flow(notebook_path, run_config, run_name=None):
+def run_flow(notebook_path, config, run_name=None):
     """
     THE CORE PATTERN - Execute any notebook with configuration
     
@@ -51,7 +51,7 @@ def run_flow(notebook_path, run_config, run_name=None):
     # 3. Save configuration Should be able to just inspect the config
     config_path = output_dir / "_config.json"
     with open(config_path, 'w') as f:
-        json.dump(run_config, f, indent=2)
+        json.dump(config, f, indent=2)
     
     print(f"🚀 Executing: {run_name}")
     print(f"📁 Output: {output_dir}")
@@ -65,7 +65,7 @@ def run_flow(notebook_path, run_config, run_name=None):
         
         executed_notebook = run_notebook(
             notebook_file=notebook_path,
-            config=run_config,
+            config=config,
             notebooks_dir=original_dir,
             output_suffix="_executed",
             timeout=1800
@@ -86,7 +86,7 @@ for i in range(3):
     config = {'the_number':i}
     executed_nb, output_dir = run_flow(
         notebook_path="flow/_flow_shell.py",
-        run_config=config,
+        config=config,
         run_name=f"my_run_{i}",
     )
 
