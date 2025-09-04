@@ -171,11 +171,82 @@ run_step_flow("02_generate_vector_inputs", "sc_seql2_multi_vectors", vector_inpu
 print_pipeline_status()
 ```
 
+## Ductaflow Flow Development Requirements
+
+### Mandatory Cell Structure
+
+All ductaflow notebooks must include the following cell structure:
+
+#### 1. Parameters Cell (REQUIRED)
+```python
+# %% tags=["parameters"]
+# Parameters cell - will be injected by papermill
+config = {}
+```
+**Critical**: This cell MUST be tagged with `["parameters"]` for papermill execution. Without this cell, ductaflow execution will fail.
+
+#### 2. Configuration Handling Cell
+```python
+# %%
+# Configuration handling - ductaflow pattern
+if 'config' in locals() and config:
+    for key, value in config.items():
+        if isinstance(value, dict):
+            locals()[key] = value
+            for sub_key, sub_value in value.items():
+                locals()[sub_key] = sub_value
+        else:
+            locals()[key] = value
+```
+
+#### 3. Imports with Correct Path
+```python
+# %%
+import sys
+# Add code directory to path for imports (executed from runs/step_name/instance_name/)
+sys.path.append('../../../code')
+from your_modules import your_functions
+```
+
+### Path Context Awareness
+
+**CRITICAL**: Ductaflow notebooks execute from the context: `runs/{step_name}/{instance_name}/`
+
+The `run_step_flow` function in conductor.py:
+1. Changes to the output directory: `os.chdir(output_dir)` 
+2. Calls `run_notebook()` from `runs/{step_name}/{instance_name}/`
+3. **Papermill executes your notebook from this directory - no further `os.chdir()` needed!**
+
+**All relative paths must account for this execution context:**
+- Code imports: `sys.path.append('../../../code')`  
+- Input data: `../../../inputs/your_data.csv`
+- Previous step outputs: `../../previous_step_name/instance_name/output.parquet`
+
+**Do NOT use `os.chdir()` in notebooks** - you're already in the correct execution directory!
+
+### Configuration Pattern
+
+- Config dict gets passed and all keys that don't have a nested dict as their value become local variables
+- Record of config.json always stored in run folder
+- Config values displayed as markdown at top of executed notebook
+- Nested dictionary handling preserves parent dictionaries while flattening child keys
+
+### Common Path Patterns
+```python
+# From runs/step_name/instance_name/ execution context:
+sys.path.append('../../../code')                     # Access code modules  
+profile_dir = Path("../../previous_step/instance")   # Reference previous step output
+
+# For datasets within specific model runs, use config parameter:
+model_runs_dir = Path(model_runs_dir)                # Convert config to Path
+data = pd.read_parquet(model_runs_dir / 'subfolder/file.parquet')  # Clean path joining
+```
+
 ## Original Notes
 - config dict always gets passed and all keys that dont have a nested dict as their value become local variables in the executed instance
 - record of config.json always stored in run folder
 - config values displayed as markdown at top of executed notebook
-- if you have a custom output location you will need to have ductacore accesible to python so need to update the sys.path.append('../../code') line in the flow you are making
+- if you have a custom output location you will need to have ductacore accesible to python so need to update the sys.path.append('../../../code') line in the flow you are making
 
 ## Recommended Next Steps
 1. **Standardize step-based pattern** across all ductaflow projects
