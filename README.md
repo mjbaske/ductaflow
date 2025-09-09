@@ -171,17 +171,31 @@ run_step_flow("02_generate_vector_inputs", "sc_seql2_multi_vectors", vector_inpu
 print_pipeline_status()
 ```
 
-## Ductaflow Flow Development Requirements
 
-### Mandatory Cell Structure
 
-All ductaflow notebooks must include the following cell structure:
 
 #### 1. Parameters Cell (REQUIRED)
 ```python
 # %% tags=["parameters"]
 # Parameters cell - will be injected by papermill
 config = {}
+# Pattern: Bulk processor coordinates multiple flow instances
+for time_period in ["am", "pm"]:
+    for category in categories:
+        for zone_system in ["L2", "L4", "SCRAM"]:
+            # Generate vector inputs instance
+            vector_config = create_vector_config(time_period, category, zone_system)
+            run_step_flow("generate_vector_inputs", f"{zone_system}_{category}_{time_period}", vector_config)
+            
+            # Generate visualization instance
+            viz_config = create_viz_config(vector_instance=f"{zone_system}_{category}_{time_period}")
+            run_step_flow("generate_stock_view", f"view_{zone_system}_{category}_{time_period}", viz_config)
+
+# Meta-flow combines multiple instances
+run_step_flow("generate_bulk_index", "combined_outputs", {
+    "source_instances": get_all_instances("generate_stock_view"),
+    "collated_output_path": "./runs/bulk_outputs/"
+})
 ```
 **Critical**: This cell MUST be tagged with `["parameters"]` for papermill execution. Without this cell, ductaflow execution will fail.
 
@@ -198,6 +212,11 @@ if 'config' in locals() and config:
         else:
             locals()[key] = value
 ```
+**Key Benefits:**
+- **Mass Production**: Generate hundreds of analysis variants systematically
+- **Smart Caching**: Skip existing instances to enable incremental processing  
+- **Collated Outputs**: Centralized organization of bulk results with indexes
+- **Meta-Composition**: Flows that consume outputs from multiple other flow instances
 
 #### 3. Imports with Correct Path
 ```python
@@ -206,6 +225,7 @@ import sys
 # Add code directory to path for imports (executed from runs/step_name/instance_name/)
 sys.path.append('../../../code')
 from your_modules import your_functions
+**Directory Structure:**
 ```
 
 ### Path Context Awareness
@@ -231,22 +251,63 @@ The `run_step_flow` function in conductor.py:
 - Config values displayed as markdown at top of executed notebook
 - Nested dictionary handling preserves parent dictionaries while flattening child keys
 
-### Common Path Patterns
-```python
-# From runs/step_name/instance_name/ execution context:
-sys.path.append('../../../code')                     # Access code modules  
-profile_dir = Path("../../previous_step/instance")   # Reference previous step output
-
-# For datasets within specific model runs, use config parameter:
-model_runs_dir = Path(model_runs_dir)                # Convert config to Path
-data = pd.read_parquet(model_runs_dir / 'subfolder/file.parquet')  # Clean path joining
-```
-
 ## Original Notes
 - config dict always gets passed and all keys that dont have a nested dict as their value become local variables in the executed instance
 - record of config.json always stored in run folder
 - config values displayed as markdown at top of executed notebook
 - if you have a custom output location you will need to have ductacore accesible to python so need to update the sys.path.append('../../../code') line in the flow you are making
+
+
+
+
+
+## Advanced Orchestration Patterns
+
+### Flow-of-Flows (Bulk Processing)
+For complex scenarios requiring many combinations of parameters/datasets, ductaflow supports **bulk orchestration**:
+
+```python
+# Pattern: Bulk processor coordinates multiple flow instances
+for time_period in ["am", "pm"]:
+    for category in categories:
+        for zone_system in ["L2", "L4", "SCRAM"]:
+            # Generate vector inputs instance
+            vector_config = create_vector_config(time_period, category, zone_system)
+            run_step_flow("generate_vector_inputs", f"{zone_system}_{category}_{time_period}", vector_config)
+            
+            # Generate visualization instance
+            viz_config = create_viz_config(vector_instance=f"{zone_system}_{category}_{time_period}")
+            run_step_flow("generate_stock_view", f"view_{zone_system}_{category}_{time_period}", viz_config)
+
+# Meta-flow combines multiple instances
+run_step_flow("generate_bulk_index", "combined_outputs", {
+    "source_instances": get_all_instances("generate_stock_view"),
+    "collated_output_path": "./runs/bulk_outputs/"
+})
+```
+
+**Key Benefits:**
+- **Mass Production**: Generate hundreds of analysis variants systematically
+- **Smart Caching**: Skip existing instances to enable incremental processing  
+- **Collated Outputs**: Centralized organization of bulk results with indexes
+- **Meta-Composition**: Flows that consume outputs from multiple other flow instances
+
+**Directory Structure:**
+```
+runs/
+├── generate_vector_inputs/          # Atomic step instances
+│   ├── L2_dwellings_am/
+│   ├── L2_dwellings_pm/
+│   ├── L4_employment_am/
+│   └── SCRAM_trips_am/
+├── generate_stock_view/             # Dependent instances
+│   ├── view_L2_dwellings_am/
+│   └── view_L4_employment_am/
+└── generate_bulk_index/             # Meta-composition instances
+    └── combined_outputs/
+        ├── index.html               # Collated navigation
+        └── bulk_summary.json        # Processing metadata
+```
 
 ## Recommended Next Steps
 1. **Standardize step-based pattern** across all ductaflow projects
@@ -254,3 +315,5 @@ data = pd.read_parquet(model_runs_dir / 'subfolder/file.parquet')  # Clean path 
 3. **Develop templates** for common flow types (data processing, visualization, analysis)
 4. **Build validation tools** for configuration schemas and data types
 5. **Add pipeline visualization** tools for complex dependency graphs
+6. **Bulk processing templates** for systematic parameter sweeps and meta-analysis
+

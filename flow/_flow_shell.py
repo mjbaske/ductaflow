@@ -18,8 +18,8 @@ import numpy as np
 
 # Add code paths to assuming a ductaflow/runs/{instance_name}/flow.ipynb output execution path
 # need to ensure the output flow has access to your ductaflow code folder otherwise
-
-sys.path.append('../../code')
+# this will be executed from ./runs/{flow_name}/{flow_instance} so three up.
+sys.path.append('../../../code')
 pipeline_name = 'Flow Shell'
 # Import pipeline framework for configuration display
 try:
@@ -65,9 +65,11 @@ print("Starting main processing...")
 # Example structure:
 
 print(config)
+output=0
 for i in range(3):
-    print(i)
+    output+=i
 
+pd.Series(output).to_csv("output.csv") # Notebooks are executed in the output folder so it can be placed at current directory.
 
 # %%
 # Export key variables for potential pipeline use (standardized approach)

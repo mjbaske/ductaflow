@@ -263,6 +263,53 @@ def setup_run_config(base_config: Dict[str, Any],
     return config
 
 # %% [markdown]
+# ## HTML Export Functions
+
+# %%
+def convert_notebook_to_html(notebook_path: Union[str, Path], 
+                           html_path: Union[str, Path],
+                           template: str = 'lab') -> None:
+    """
+    Convert executed notebook to HTML using nbconvert
+    
+    Args:
+        notebook_path: Path to the executed .ipynb notebook
+        html_path: Path where HTML file should be saved
+        template: nbconvert template to use ('lab', 'classic', 'reveal', etc.)
+    """
+    try:
+        import nbconvert
+        from nbconvert import HTMLExporter
+        
+        # Create HTML exporter with specified template
+        exporter = HTMLExporter()
+        exporter.template_name = template
+        
+        # Read and convert notebook
+        with open(notebook_path, 'r', encoding='utf-8') as f:
+            notebook_content = f.read()
+        
+        (body, resources) = exporter.from_filename(str(notebook_path))
+        
+        # Write HTML file
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(body)
+            
+    except ImportError:
+        # Fallback to command line nbconvert if library import fails
+        try:
+            subprocess.run([
+                'jupyter', 'nbconvert', '--to', 'html', 
+                '--template', template,
+                '--output', str(html_path),
+                str(notebook_path)
+            ], check=True, capture_output=True)
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            raise RuntimeError(f"HTML conversion failed: {e}")
+    except Exception as e:
+        raise RuntimeError(f"HTML conversion failed: {e}")
+
+# %% [markdown]
 # ## Core Notebook Execution Function
 
 # %%
@@ -271,7 +318,8 @@ def run_notebook(notebook_file: Union[str, Path],
                 config: Dict[str, Any] = {'param1': 'value1'},
                 output_suffix: str = "_executed",
                 kernel_name: str = "python3",
-                timeout: int = 3600) -> Path:
+                timeout: int = 3600,
+                export_html: bool = True) -> Path:
     """
     Execute a Jupytext .py file as a notebook with configuration parameters
     
@@ -282,6 +330,7 @@ def run_notebook(notebook_file: Union[str, Path],
         output_suffix: Suffix for output notebook filename
         kernel_name: Jupyter kernel to use for execution
         timeout: Execution timeout in seconds
+        export_html: Whether to also export an HTML version of the executed notebook
     
     Returns:
         Path to the executed notebook file
@@ -341,6 +390,16 @@ def run_notebook(notebook_file: Union[str, Path],
         )
         
         print(f"✓ Successfully executed: {notebook_file}")
+        
+        # Export to HTML if requested
+        if export_html:
+            try:
+                html_output = output_notebook.with_suffix('.html')
+                convert_notebook_to_html(output_notebook, html_output)
+                print(f"✓ HTML export created: {html_output}")
+            except Exception as e:
+                print(f"⚠️ HTML export failed: {e}")
+        
         return output_notebook
         
     except pm.PapermillExecutionError as e:
