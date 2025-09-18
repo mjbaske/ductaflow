@@ -60,8 +60,7 @@ def run_step_flow(notebook_path, step_name, instance_name, config):
             notebook_file=notebook_path,
             config=config,
             notebooks_dir=original_dir,
-            output_suffix="_executed",
-            timeout=1800
+            output_suffix="_executed"
         )
         
         print(f"✅ Completed: {executed_notebook}")

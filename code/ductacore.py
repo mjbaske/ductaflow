@@ -318,7 +318,7 @@ def run_notebook(notebook_file: Union[str, Path],
                 config: Dict[str, Any] = {'param1': 'value1'},
                 output_suffix: str = "_executed",
                 kernel_name: str = "python3",
-                timeout: int = 3600,
+                timeout: Optional[int] = None,
                 export_html: bool = True) -> Path:
     """
     Execute a Jupytext .py file as a notebook with configuration parameters
@@ -329,7 +329,7 @@ def run_notebook(notebook_file: Union[str, Path],
         notebooks_dir: Directory containing notebook files (defaults to current working directory)
         output_suffix: Suffix for output notebook filename
         kernel_name: Jupyter kernel to use for execution
-        timeout: Execution timeout in seconds
+        timeout: Execution timeout in seconds (None for unlimited)
         export_html: Whether to also export an HTML version of the executed notebook
     
     Returns:
@@ -377,17 +377,21 @@ def run_notebook(notebook_file: Union[str, Path],
         source_notebook = temp_ipynb
     
     try:       
-        pm.execute_notebook(
-            str(source_notebook),
-            str(output_notebook),
-            parameters={
-                "config": config
-            },
-            kernel_name=kernel_name,
-            request_save_on_cell_execute=True,
-            progress_bar=True,
-            execution_timeout=timeout
-        )
+        # Set up papermill execution parameters
+        execute_params = {
+            "input_path": str(source_notebook),
+            "output_path": str(output_notebook),
+            "parameters": {"config": config},
+            "kernel_name": kernel_name,
+            "request_save_on_cell_execute": True,
+            "progress_bar": True
+        }
+        
+        # Only add timeout if it's specified (not None)
+        if timeout is not None:
+            execute_params["execution_timeout"] = timeout
+        
+        pm.execute_notebook(**execute_params)
         
         print(f"✓ Successfully executed: {notebook_file}")
         
