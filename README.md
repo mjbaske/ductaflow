@@ -7,29 +7,85 @@ Stop wrestling with complex orchestration tools and brittle notebook chains. duc
 
 **🔄 Easily Re-executable:** Since everything is a notebook (.py file), you can re-run any part at any time - fix a bug in your flow, re-run just that step; client wants different parameters, modify the control dataframe and re-execute; need to add new scenarios, just add rows and run the new cells. Pure notebook experience with git-friendly .py files and bulletproof reproducibility. Perfect for data science, ML experiments, and any analysis where you need results to flow reliably from source to destination.
 
-## 🚀 Quick Setup: Create New Projects
+## 🚀 Quick Setup: Copy Template
 
 ```python
 from ductacore import make_new_ductaflow_instance
 
-# Create a new project with all scaffolding
+# Copy entire ductaflow template to new project
 make_new_ductaflow_instance("my_analysis")
 
-# Result: Complete project structure ready to go
+# Result: Complete ductaflow copy ready to customize
 # my_analysis/
-# ├── code/                    # Core utilities (copied)
-# ├── flow/                    # Your .py notebook files
-# ├── inputs/control_df.csv    # Parameter template  
-# ├── runs/                    # Execution results
-# ├── cndctr_my_analysis.py    # Minimal conductor (< 30 lines)
-# └── README.md               # Project documentation
+# ├── code/                    # ductacore utilities (copied)
+# ├── flow/                    # Example flows (copied)  
+# ├── runs/                    # Ready for results
+# ├── cnd_my_analysis.py       # Renamed conductor
+# ├── README.md               # This documentation
+# └── ductaflow_version.txt   # Git commit info
 ```
 
-**Ultra-minimal conductor template:**
-- Loads `control_df.csv` automatically
-- One TODO: point to your flow file
-- Execute dataframe systematically  
-- Ready to run in 30 seconds
+**Simple template copy:**
+- Copies entire working ductaflow
+- Renames conductor with your project name  
+- Captures git version for reproducibility
+- Ready to customize and run
+
+## 🔄 **Multiple Execution Options - Your Choice**
+
+**🚫 Don't like notebooks?** No problem! ductaflow works EXACTLY like traditional Python scripts too.
+
+### **Option 1: Interactive Notebooks (Jupyter/VS Code)**
+```python
+# Open flow/my_analysis.py as notebook
+# Run cells interactively
+# Variables come from config injection
+```
+
+### **Option 2: Traditional Python Scripts**
+```python
+# Create a clean Python run script 
+from ductacore import create_flow_run_script
+create_flow_run_script('flow/my_analysis.py')
+
+# Now run like any Python script:
+python my_analysis_run.py
+```
+
+### **Option 3: Standalone Python Script (when needed)**
+```python
+# Convert flow to pure Python script if you need it
+from ductacore import create_standalone_python_script
+create_standalone_python_script('flow/my_analysis.py')
+
+# Result: my_analysis_standalone.py + my_analysis_config.json
+# Run like any Python script:
+python my_analysis_standalone.py
+```
+
+**When this is useful:**
+- **Sharing with colleagues** who don't have jupyter/papermill installed
+- **Running on servers** without notebook environments  
+- **Batch processing** where you want simple command-line execution
+- **CI/CD pipelines** that prefer standard Python scripts
+
+### **Option 4: Temporary Script Runner**
+```python
+# Create a bat file for quick one-off runs
+from ductacore import create_flow_bat_runner
+create_flow_bat_runner('flow/my_analysis.py')
+
+# Double-click run_my_analysis.bat or call from conductor
+# Creates temp script → runs → cleans up automatically
+```
+
+**Handy for:** Quick execution without cluttering your workspace with script files.
+
+**🎯 The Point:**
+- **Same `.py file`** works as notebook OR script - your choice
+- **Same config injection** regardless of how you run it
+- **Start with notebooks** for exploration, convert to scripts when needed
+- **Most of the time** you'll just use the interactive notebook experience
 
 
 ## Core dependencies: 
