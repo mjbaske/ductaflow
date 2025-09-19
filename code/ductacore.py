@@ -12,6 +12,7 @@ import pandas as pd
 import os
 import jupytext
 import logging
+import re
 from typing import Dict, Any, Optional, Union
 
 # %%
@@ -308,6 +309,123 @@ def convert_notebook_to_html(notebook_path: Union[str, Path],
             raise RuntimeError(f"HTML conversion failed: {e}")
     except Exception as e:
         raise RuntimeError(f"HTML conversion failed: {e}")
+
+# %% [markdown]
+# ## Project Setup Functions
+
+# %%
+def make_new_ductaflow_instance(ductaflow_name: str, target_dir: Union[str, Path] = ".") -> Path:
+    """
+    Copy current ductaflow template to a new project directory.
+    
+    Args:
+        ductaflow_name: Name for the new project
+        target_dir: Where to create the new project folder
+        
+    Returns:
+        Path to the created project directory
+    """
+    import shutil
+    import subprocess
+    
+    # Setup paths
+    target_dir = Path(target_dir)
+    project_dir = target_dir / ductaflow_name
+    current_dir = Path(__file__).parent.parent  # ductaflow root
+    
+    print(f"🚀 Creating ductaflow template: {ductaflow_name}")
+    print(f"📁 Target: {project_dir}")
+    
+    # Copy entire ductaflow directory
+    if project_dir.exists():
+        print(f"⚠️ Directory exists, removing: {project_dir}")
+        shutil.rmtree(project_dir)
+    
+    shutil.copytree(current_dir, project_dir, ignore=shutil.ignore_patterns('runs', '__pycache__', '.git'))
+    print(f"✅ Copied ductaflow template")
+    
+    # Rename conductor.py to cnd_{ductaflow_name}.py
+    old_conductor = project_dir / "conductor.py"
+    new_conductor = project_dir / f"cnd_{ductaflow_name}.py"
+    
+    if old_conductor.exists():
+        # Update title in conductor
+        with open(old_conductor, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Replace title in first markdown cell
+        updated_content = re.sub(
+            r"# # .*? Conductor", 
+            f"# # {ductaflow_name.replace('_', ' ').title()} Conductor", 
+            content
+        )
+        
+        with open(new_conductor, 'w', encoding='utf-8') as f:
+            f.write(updated_content)
+        
+        old_conductor.unlink()
+        print(f"✅ Renamed conductor: conductor.py → cnd_{ductaflow_name}.py")
+    
+    # Capture git info
+    try:
+        git_info = subprocess.run(['git', 'rev-parse', 'HEAD'], 
+                                capture_output=True, text=True, cwd=current_dir)
+        if git_info.returncode == 0:
+            with open(project_dir / "ductaflow_version.txt", 'w') as f:
+                f.write(f"ductaflow git commit: {git_info.stdout.strip()}\n")
+            print(f"✅ Captured git version: {git_info.stdout.strip()[:8]}")
+    except:
+        print("⚠️ Could not capture git info")
+    
+    print(f"\n🎉 Template ready: {ductaflow_name}")
+    print(f"🚀 Open cnd_{ductaflow_name}.py as a notebook to start")
+    
+    return project_dir
+
+# %%
+def rename_conductor(project_dir: Union[str, Path], new_ductaflow_name: str) -> Path:
+    """
+    Rename conductor file and update its title to match new ductaflow name.
+    
+    Args:
+        project_dir: Path to the ductaflow project directory
+        new_ductaflow_name: New name for the ductaflow project
+        
+    Returns:
+        Path to the renamed conductor file
+    """
+    project_dir = Path(project_dir)
+    
+    # Find existing conductor file
+    conductor_files = list(project_dir.glob("cndctr_*.py"))
+    if not conductor_files:
+        raise FileNotFoundError("No conductor file found (cndctr_*.py)")
+    
+    old_conductor = conductor_files[0]
+    new_conductor_filename = f"cndctr_{new_ductaflow_name}.py"
+    new_conductor_path = project_dir / new_conductor_filename
+    
+    # Read and update conductor content
+    with open(old_conductor, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Update the title in the markdown cell
+    old_title_pattern = r"# # .*? Conductor"
+    new_title = f"# # {new_ductaflow_name.replace('_', ' ').title()} Conductor"
+    updated_content = re.sub(old_title_pattern, new_title, content)
+    
+    # Write to new file
+    with open(new_conductor_path, 'w', encoding='utf-8') as f:
+        f.write(updated_content)
+    
+    # Remove old file if different name
+    if old_conductor != new_conductor_path:
+        old_conductor.unlink()
+        print(f"🔄 Renamed conductor: {old_conductor.name} → {new_conductor_filename}")
+    else:
+        print(f"✅ Updated conductor title: {new_conductor_filename}")
+    
+    return new_conductor_path
 
 # %% [markdown]
 # ## Core Notebook Execution Function

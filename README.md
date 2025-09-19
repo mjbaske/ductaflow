@@ -1,8 +1,44 @@
 # ductaflow
-A simple, useful, model instance execution pattern.
-This framework provides a robust system for creating and managing pipelines of code using Jupytext .py files that are executed as notebooks with full state capture and record keeping.
+**🚀 The pipeline framework that actually works in practice.**
 
-## Core Concept
+Stop wrestling with complex orchestration tools and brittle notebook chains. ductaflow lets you build reproducible pipelines using **notebooks all the way down** - your analysis steps are Jupytext .py files, and your conductor is a Jupytext .py file too. **Want results fast?** append your re-useable methods and objects in `code/` → capture common required sequential steps in a `flow/` → open `conductor.py` as a interactive notebook → run cells to loop or chain flows, grid search over dimensions etc, or do whatever you want interactively → every execution gets saved to `runs/{flow_name}/{instance_name}` with full state and capture, configs, and HTML reports. 
+
+**🌊 Flow Pattern:** Let your conductor orchestrate streams of analysis - use dataframe iteration to systematically flow hundreds of instances from parameter combinations downstream, with results naturally deposited in client directories like `{target_dir}/{client_group}/{project}/{instance_name}`. 
+
+**🔄 Easily Re-executable:** Since everything is a notebook (.py file), you can re-run any part at any time - fix a bug in your flow, re-run just that step; client wants different parameters, modify the control dataframe and re-execute; need to add new scenarios, just add rows and run the new cells. Pure notebook experience with git-friendly .py files and bulletproof reproducibility. Perfect for data science, ML experiments, and any analysis where you need results to flow reliably from source to destination.
+
+## 🚀 Quick Setup: Create New Projects
+
+```python
+from ductacore import make_new_ductaflow_instance
+
+# Create a new project with all scaffolding
+make_new_ductaflow_instance("my_analysis")
+
+# Result: Complete project structure ready to go
+# my_analysis/
+# ├── code/                    # Core utilities (copied)
+# ├── flow/                    # Your .py notebook files
+# ├── inputs/control_df.csv    # Parameter template  
+# ├── runs/                    # Execution results
+# ├── cndctr_my_analysis.py    # Minimal conductor (< 30 lines)
+# └── README.md               # Project documentation
+```
+
+**Ultra-minimal conductor template:**
+- Loads `control_df.csv` automatically
+- One TODO: point to your flow file
+- Execute dataframe systematically  
+- Ready to run in 30 seconds
+
+
+## Core dependencies: 
+    ## papermill
+    ## jupytext
+    Open source python is a true blessing on the world.
+
+
+## Core Concepts
 
 The pipeline management pattern works as follows:
 
@@ -20,161 +56,100 @@ The pipeline management pattern works as follows:
 - **Debugging**: Failed executions saved with error state
 - **Modularity**: Individual pipeline steps can be developed and tested independently
 - **Scalability**: Can be extended to run on different compute environments
+- **🔄 Easy Re-execution**: Interactive notebook experience means you can re-run any part anytime
 
-## Directory Structure
+## 🔄 Why Re-executability Matters
 
-### Original Pattern
-```
-ductaflow/
-├── code/                                # Reference code and utilities
-│   ├── ductacore.py                     # Core functions of ductaflow
-├── flow/                                # Source .py notebook files
-│   ├── 01_data_prep.py
-│   ├── 02_analysis.py  
-│   └── 03_outputs.py
-└── runs/                                # Execution instances
-    ├── run_20250826_09/
-    │   ├── CONFIG.json                  # Run configuration
-    │   ├── 01_data_prep_executed.ipynb  # Execution artifacts
-    │   └── outputs/                     # Generated outputs
-└── conductor.py                         # Pipeline orchestration
-```
+**The Problem:** Traditional pipeline tools make it painful to iterate - you change one parameter and have to restart everything, or you fix a bug and can't easily re-run just the affected parts.
 
-### Improved Step-Based Pattern (Recommended)
-```
-ductaflow/
-├── code/
-│   ├── ductacore.py
-├── flow/                                # Source .py notebook files
-│   ├── 01_create_point_grid.py
-│   ├── 02_generate_vector_inputs.py
-│   ├── 03_generate_stock_view.py
-│   └── 04_generate_stock_difference_view.py
-├── runs/                                # Step-based execution instances
-│   ├── create_point_grid/               # Step 1 instances
-│   │   ├── main_grid/                   # Named instance
-│   │   │   ├── CONFIG.json
-│   │   │   ├── 01_create_point_grid_executed.ipynb
-│   │   │   └── point_grid.parquet       # Step outputs
-│   │   └── high_resolution_grid/        # Alternative instance
-│   ├── generate_vector_inputs/          # Step 2 instances
-│   │   ├── sc_seql2_multi_vectors/      # Named instance
-│   │   │   ├── CONFIG.json
-│   │   │   ├── stock_data.parquet
-│   │   │   ├── zone_totals.parquet
-│   │   │   └── 02_generate_vector_inputs_executed.ipynb
-│   │   └── scram_analysis/              # Alternative instance
-│   └── generate_stock_view/             # Step 3 instances
-│       ├── l2_view/
-│       └── l4_view/
-├── example_configs/                     # Configuration templates
-│   ├── 01_create_point_grid_example.json
-│   └── 02_generate_vector_inputs_example.json
-└── conductor.py                         # Pipeline orchestration with instance discovery
+**The ductaflow Solution:** Everything is a notebook, so everything is easily re-executable:
 
-## Implementation Lessons & Recommendations
+- **🐛 Bug fixes:** Fix a flow step → re-run just that cell in your conductor → updated results flow downstream
+- **📊 Parameter changes:** Modify your control dataframe → re-run the iteration loop → only new/changed instances execute  
+- **🆕 Add scenarios:** Add new rows to your dataframe → run just those new cells → seamlessly extend your analysis
+- **🔧 Client requests:** "Can you change the threshold?" → modify config → re-execute → deliver updated results in minutes
+- **🧪 Experimentation:** Try different approaches interactively, compare results, keep what works
 
-### Key Patterns Discovered
+**No complex DAG management, no pipeline restart headaches** - just the natural flow of interactive notebooks with reproducibility.
 
-#### 1. Step-Based Instance Management
-**Pattern**: `runs/{step_name}/{instance_name}/`
-- **Benefits**: Enables pipeline composition, clear dependency tracking, multiple variations
-- **Usage**: Reference previous outputs via `f'../../{step_name}/{instance_name}/output.parquet'`
-- **Recommendation**: Always use descriptive instance names (`main_grid`, `sc_seql2_multi_vectors`)
+## 🎯 Key Pattern: Dataframe-Driven Instance Generation in the conductor
 
-#### 2. Conductor Script Best Practices
+**The Constraint:** You want to generate dozens/hundreds of analysis instances systematically, not manually.
+
+**The Solution:** Use a control dataframe in your conductor notebook where each row defines an instance:
+
 ```python
-# Instance discovery and status reporting
-def get_available_instances(step_name):
-    """Show available instances for dependency selection"""
+# %% 
+# Control dataframe with instance parameters
+control_df = pd.DataFrame({
+    'instance_name': ['scenario_A', 'scenario_B', 'scenario_C'],
+    'network_base': ['NET_2024', 'NET_2024', 'NET_2025'], 
+    'network_new': ['NET_2025_OPT1', 'NET_2025_OPT2', 'NET_2026'],
+    'client_group': ['transport', 'transport', 'planning'],
+    'project': ['SEQ_analysis', 'SEQ_analysis', 'future_networks'],
+    'param1': [100, 200, 150],
+    'param2': ['mode_A', 'mode_B', 'mode_A']
+})
+
+# %% 
+# Iterate through dataframe to generate instances
+for i in range(len(control_df)):
+    row = control_df.iloc[i]
     
-def print_pipeline_status():
-    """Display current pipeline state and dependencies"""
-
-# Configuration reuse patterns
-base_config = {...}
-specific_config = copy.deepcopy(base_config)
-specific_config.update({...})
-```
-
-#### 3. Configuration Management Improvements
-- **Nested Dict Handling**: Preserve parent dictionaries while flattening child keys
-- **Base Templates**: Create reusable base configurations to reduce duplication
-- **Type Safety**: Handle data type consistency for parquet/file outputs
-- **Optional Parameters**: Make advanced features optional with sensible defaults
-
-#### 4. Data Flow Patterns
-- **Standardized Outputs**: Use consistent file formats (e.g., geoparquet for spatial data)
-- **Metadata Preservation**: Include data lineage and processing metadata
-- **Performance Optimization**: Round numerical data, optimize calculations for large datasets
-- **Error Handling**: Graceful handling of edge cases (missing zones, type mismatches)
-
-### Configuration Best Practices
-
-#### Nested Dictionary Pattern
-```python
-# In flow file - handle both flat and nested configs
-if 'config' in locals() and config:
-    for key, value in config.items():
-        if isinstance(value, dict):
-            # Preserve parent dict AND flatten children
-            locals()[key] = value  # Keep nested dict accessible
-            for sub_key, sub_value in value.items():
-                locals()[sub_key] = sub_value
-        else:
-            locals()[key] = value
-```
-
-#### Instance Referencing Pattern
-```python
-# In conductor.py
-vector_inputs_config = {
-    "point_grid_instance": "main_grid",  # Reference to runs/create_point_grid/main_grid/
-    "processing_mode": "stock",
-    "data_sources": {
-        "am_dwellings": {
-            "path": "data/L2_O_by_DESTCAT.parquet",
-            "category": "Total_Occupied_dwellings"
+    # Build config from row values
+    config = {
+        'network_base': row['network_base'],
+        'network_new': row['network_new'], 
+        'processing_params': {
+            'param1': row['param1'],
+            'param2': row['param2']
         }
     }
-}
+    
+    # Function to ducatacore.run_notebook to execute the current flow
+    run_step_flow(
+        notebook_path="flow/network_analysis.py",
+        step_name="network_analysis", 
+        instance_name=row['instance_name'],
+        config=config
+    )
+    
+    # Export to client directory structure
+    source_dir = f"./runs/network_analysis/{row['instance_name']}"
+    dest_dir = f"/client_delivery/{row['client_group']}/{row['project']}/{row['instance_name']}"
+    
+    if os.path.exists(source_dir):
+        shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
+        print(f"✅ Exported {row['instance_name']} to {dest_dir}")
 ```
 
-### Error Handling Improvements
+**Result:** Systematic generation + organized delivery to clients, all trackable and reproducible.
 
-#### Type Safety for File Outputs
+## 🚀 Quick Setup: Copy Template
+
 ```python
-# Handle mixed types for parquet compatibility
-df['zone_id'] = df['zone_id'].fillna(-1).astype('Int64')  # Not strings!
+from ductacore import make_new_ductaflow_instance
+
+# Copy entire ductaflow template to new project
+make_new_ductaflow_instance("my_analysis")
+
+# Result: Complete ductaflow copy ready to customize
+# my_analysis/
+# ├── code/                    # ductacore utilities (copied)
+# ├── flow/                    # Example flows (copied)  
+# ├── runs/                    # Ready for results
+# ├── cnd_my_analysis.py       # Renamed conductor
+# ├── README.md               # This documentation
+# └── ductaflow_version.txt   # Git commit info
 ```
 
-#### Graceful Degradation
-- Zone totals only for valid hexagons
-- Optional features don't break core functionality
-- Clear error messages with context
+**Simple template copy:**
+- Copies entire working ductaflow
+- Renames conductor with your project name  
+- Captures git version for reproducibility
+- Ready to customize and run
 
-### Performance Considerations
-- **Large Dataset Handling**: Use efficient pandas operations (drop_duplicates, groupby)
-- **Memory Management**: Process in chunks where needed
-- **File Formats**: Use parquet for large datasets, JSON for configs
-- **Rounding**: Round display values (1 decimal) for cleaner UX
-
-### Conductor Script Patterns
-```python
-# Show available options for dependent steps
-print_available_instances("create_point_grid", " (spatial grids)")
-
-# Execute with instance naming
-run_step_flow("02_generate_vector_inputs", "sc_seql2_multi_vectors", vector_inputs_config)
-
-# Pipeline status tracking
-print_pipeline_status()
-```
-
-
-
-
-#### 1. Parameters Cell (REQUIRED)
+#### note 1. Parameters Cell in your flow.py's (REQUIRED)
 ```python
 # %% tags=["parameters"]
 # Parameters cell - will be injected by papermill
@@ -199,7 +174,8 @@ run_step_flow("generate_bulk_index", "combined_outputs", {
 ```
 **Critical**: This cell MUST be tagged with `["parameters"]` for papermill execution. Without this cell, ductaflow execution will fail.
 
-#### 2. Configuration Handling Cell
+#### note 2. Add this to drop need for config['{name}'] and just have name of object in code
+Configuration instance value handling cell
 ```python
 # %%
 # Configuration handling - ductaflow pattern
@@ -218,7 +194,7 @@ if 'config' in locals() and config:
 - **Collated Outputs**: Centralized organization of bulk results with indexes
 - **Meta-Composition**: Flows that consume outputs from multiple other flow instances
 
-#### 3. Imports with Correct Path
+#### note 3. Code is for pys that arent a module yet but need to add it to path
 ```python
 # %%
 import sys
@@ -309,11 +285,4 @@ runs/
         └── bulk_summary.json        # Processing metadata
 ```
 
-## Recommended Next Steps
-1. **Standardize step-based pattern** across all ductaflow projects
-2. **Create helper functions** for common patterns (instance discovery, config reuse)
-3. **Develop templates** for common flow types (data processing, visualization, analysis)
-4. **Build validation tools** for configuration schemas and data types
-5. **Add pipeline visualization** tools for complex dependency graphs
-6. **Bulk processing templates** for systematic parameter sweeps and meta-analysis
 

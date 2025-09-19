@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Ductaflow Conductor Template
+# # Ductaflow Conductor
 #
 # This template demonstrates the step-based pattern discovered through real-world implementation.
 # Shows general data pipeline patterns without domain-specific complexity.
@@ -132,81 +132,82 @@ def print_pipeline_status():
 # 3. Analysis/reporting
 
 # %%
-# Step 1: Data Preparation
-data_prep_config = {
-    "input_file": "raw_data/source_data.csv",
-    "output_format": "parquet",
-    "validation_rules": {
-        "check_nulls": True,
-        "check_duplicates": True,
-        "date_format": "%Y-%m-%d"
-    },
-    "processing_options": {
-        "normalize_text": True,
-        "handle_missing": "interpolate"
-    }
-}
+# Load control dataframe for systematic instance generation
+import pandas as pd
+import os
+import shutil
 
-print("🎯 STEP 1: Data Preparation")
-run_step_flow(
-    notebook_path="flow/01_data_prep.py",
-    step_name="data_prep", 
-    instance_name="cleaned_dataset",
-    config=data_prep_config
-)
+control_df = pd.DataFrame({
+    'instance_name': ['NET_2025_OPT1', 'NET_2025_OPT2_TWB', 'NET_2026_TAU'],
+    'Network_Base': ['NET_2024_BASE', 'NET_2024_BASE', 'NET_2025_BASE'], 
+    'Network_New': ['NET_2025_OPT1', 'NET_2025_OPT2_TWB', 'NET_2026_TAU'],
+    'client_group': ['transport', 'transport', 'planning'],
+    'project': ['SEQ_Modelling', 'SEQ_Modelling', 'future_networks'],
+    'scenario_type': ['optimization', 'twb_variant', 'tau_baseline']
+})
 
-# Show available instances for the next step
-print_available_instances("data_prep", " (prepared datasets)")
+print("📊 Control Dataframe:")
+print(control_df)
 
 # %%
-# Step 2: Data Processing (referencing Step 1 instance)
-processing_config = {
-    "input_instance": "cleaned_dataset",  # Reference to runs/data_prep/cleaned_dataset/
-    "aggregation_level": "daily",
-    "metrics": ["mean", "median", "std"],
-    "groupby_columns": ["category", "region"],
-    "filters": {
-        "date_range": ["2024-01-01", "2024-12-31"],
-        "min_threshold": 10
+# Iterate through dataframe to systematically generate instances
+for i in range(len(control_df)):
+    print(f"\n🚀 Processing instance {i+1}/{len(control_df)}")
+    print(control_df.iloc[i])
+    
+    # Extract row parameters
+    base_scenario = control_df.iloc[i]['Network_Base']
+    target_scenario = control_df.iloc[i]['Network_New']
+    instance_name = control_df.iloc[i]['instance_name']
+    
+    # Conditional logic based on scenario name (your example pattern)
+    if "TWB" in target_scenario:
+        cfn = 'Common_TWB'
+    else:
+        cfn = 'Common_TAU'
+    
+    # Build configuration from row
+    scenario_config = {
+        "base_scenario": base_scenario,
+        "target_scenario": target_scenario,
+        "common_function": cfn,
+        "scenario_type": control_df.iloc[i]['scenario_type'],
+        "processing_options": {
+            "export_format": "parquet",
+            "include_diagnostics": True
+        }
     }
-}
-
-print("\n🎯 STEP 2: Data Processing")
-run_step_flow(
-    notebook_path="flow/02_process_data.py",
-    step_name="process_data",
-    instance_name="daily_aggregates", 
-    config=processing_config
-)
-
-print_available_instances("process_data", " (processed datasets)")
+    
+    # Execute flow step
+    run_step_flow(
+        notebook_path="flow/scenario_analysis.py",
+        step_name="scenario_analysis", 
+        instance_name=instance_name,
+        config=scenario_config
+    )
+    
+    # Export to client delivery structure (your pattern)
+    source_dir = f"./runs/scenario_analysis/{instance_name}"
+    dest_base_dir = "/mnt/n/SEQ_Modelling/#NETWORKS_4_6/Scenarios/SEQ/"
+    dest_dir = os.path.join(dest_base_dir, str(target_scenario))
+    
+    # Remove existing folder if it exists
+    if os.path.exists(dest_dir):
+        shutil.rmtree(dest_dir)
+        print(f"🗑️ Removed existing directory: {dest_dir}")
+    
+    # Copy the entire directory tree
+    if os.path.exists(source_dir):
+        shutil.copytree(source_dir, dest_dir)
+        print(f"✅ Copied {source_dir} to {dest_dir}")
+    else:
+        print(f"⚠️ Warning: Source directory {source_dir} does not exist")
 
 # %%
-# Step 3: Analysis & Reporting (referencing Step 2 instance)
-
-# Create base analysis configuration inline
-base_analysis_config = {
-    "input_instance": "daily_aggregates",  # Reference to Step 2
-    "output_format": "html",
-    "chart_settings": {
-        "width": 800,
-        "height": 600,
-        "theme": "default"
-    },
-    "report_sections": ["summary", "trends", "comparisons"]
-}
-
-# Run main analysis
-print("\n🎯 STEP 3: Analysis & Reporting")
-run_step_flow(
-    notebook_path="flow/03_analyze.py",
-    step_name="analysis",
-    instance_name="main_report",
-    config=base_analysis_config
-)
-
-# Show complete pipeline status
+# Show complete pipeline status after dataframe-driven generation
 print_pipeline_status()
+print(f"\n✅ Generated {len(control_df)} instances systematically from dataframe")
+
 
 # %% [markdown]
 # ## Configuration Reuse Pattern (inline, no functions)
@@ -270,14 +271,6 @@ run_step_flow(
     config=alt_analysis_config
 )
 
-# %%
-print("🎯 Ductaflow step-based pattern ready!")
-print("\n📋 Key Patterns Demonstrated:")
-print("  ✅ Step-based instance management")
-print("  ✅ Instance discovery and dependency tracking") 
-print("  ✅ Inline configuration (no functions needed)")
-print("  ✅ Configuration reuse with copy.deepcopy()")
-print("  ✅ Pipeline composition and alternatives")
-print("\n🚀 Ready to build robust, composable data pipelines!")
+
 
 # %%
