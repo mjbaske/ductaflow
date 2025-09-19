@@ -314,13 +314,13 @@ def convert_notebook_to_html(notebook_path: Union[str, Path],
 # ## Project Setup Functions
 
 # %%
-def make_new_ductaflow_instance(ductaflow_name: str, target_dir: Union[str, Path] = ".") -> Path:
+def make_new_ductaflow_instance(ductaflow_name: str, target_dir: Union[str, Path] = None) -> Path:
     """
     Copy current ductaflow template to a new project directory.
     
     Args:
         ductaflow_name: Name for the new project
-        target_dir: Where to create the new project folder
+        target_dir: Where to create the new project folder (defaults to parent of ductaflow repo)
         
     Returns:
         Path to the created project directory
@@ -329,9 +329,16 @@ def make_new_ductaflow_instance(ductaflow_name: str, target_dir: Union[str, Path
     import subprocess
     
     # Setup paths
-    target_dir = Path(target_dir)
-    project_dir = target_dir / ductaflow_name
     current_dir = Path(__file__).parent.parent  # ductaflow root
+    
+    if target_dir is None:
+        # Default: create at same level as ductaflow repo
+        # e.g., if ductaflow is at /code/ductaflow, create at /code/my_analysis
+        target_dir = current_dir.parent
+    else:
+        target_dir = Path(target_dir)
+    
+    project_dir = target_dir / ductaflow_name
     
     print(f"🚀 Creating ductaflow template: {ductaflow_name}")
     print(f"📁 Target: {project_dir}")
