@@ -1,138 +1,118 @@
 # ductaflow
 **🚀 The pipeline framework that actually works in practice.**
 
-Stop wrestling with complex orchestration tools and brittle notebook chains. ductaflow lets you build reproducible pipelines using **notebooks all the way down** - your analysis steps are Jupytext .py files, and your conductor is a Jupytext .py file too. **Want results fast?** append your re-useable methods and objects in `code/` → capture common required sequential steps in a `flow/` → open `conductor.py` as a interactive notebook → run cells to loop or chain flows, grid search over dimensions etc, or do whatever you want interactively → every execution gets saved to `runs/{flow_name}/{instance_name}` with full state and capture, configs, and HTML reports. 
+Stop wrestling with complex orchestration tools and brittle notebook chains. ductaflow uses **inline code in .py flows** that make sequential steps easily interpretable by domain experts, with **full artifact capture** and the ability to debug any flow by executing a single instance as an interactive notebook. 
 
-**🌊 Flow Pattern:** Let your conductor orchestrate streams of analysis - use dataframe iteration to systematically flow hundreds of instances from parameter combinations downstream, with results naturally deposited in client directories like `{target_dir}/{client_group}/{project}/{instance_name}`. 
+**🌊 Flow Pattern:** Use dataframe iteration to systematically generate hundreds of instances from parameter combinations, with results naturally organized in `runs/{flow_name}/{instance_name}/`.
 
-**🔄 Easily Re-executable:** Since everything is a notebook (.py file), you can re-run any part at any time - fix a bug in your flow, re-run just that step; client wants different parameters, modify the control dataframe and re-execute; need to add new scenarios, just add rows and run the new cells. Pure notebook experience with git-friendly .py files and bulletproof reproducibility. Perfect for data science, ML experiments, and any analysis where you need results to flow reliably from source to destination.
+**🔄 Easily Re-executable:** .py flows can be run as scripts OR opened as notebooks for debugging. Fix a bug → re-run just that step. Change parameters → modify dataframe and re-execute. Git-friendly .py files with bulletproof reproducibility.
 
-## 🚀 Quick Setup: Copy Template
+## 🚀 Quick Setup
 
-```python
-from ductacore import make_new_ductaflow_instance
+```bash
+# Install as package
+pip install -e .
 
-# Copy entire ductaflow template to new project
-make_new_ductaflow_instance("my_analysis")
-
-# Result: Complete ductaflow copy ready to customize
-# my_analysis/
-# ├── code/                    # ductacore utilities (copied)
-# ├── flow/                    # Example flows (copied)  
-# ├── runs/                    # Ready for results
-# ├── cnd_my_analysis.py       # Renamed conductor
-# ├── README.md               # This documentation
-# └── ductaflow_version.txt   # Git commit info
+# Use in any notebook/script
+from ductaflow import run_notebook, display_config_summary
 ```
 
-**Simple template copy:**
-- Copies entire working ductaflow
-- Renames conductor with your project name  
-- Captures git version for reproducibility
-- Ready to customize and run
-
-## 🔄 **Multiple Execution Options - Your Choice**
-
-**🚫 Don't like notebooks?** No problem! ductaflow works EXACTLY like traditional Python scripts too.
-
-### **Option 1: Interactive Notebooks (Jupyter/VS Code)**
-```python
-# Open flow/my_analysis.py as notebook
-# Run cells interactively
-# Variables come from config injection
+**Core Structure:**
+```
+your_project/
+├── flow/                    # Analysis steps (.py notebooks)
+├── runs/                    # Execution results  
+├── conductor.py             # Main orchestration notebook
+└── config/                  # JSON configurations
 ```
 
-### **Option 2: Traditional Python Scripts**
-```python
-# Create a clean Python run script 
-from ductacore import create_flow_run_script
-create_flow_run_script('flow/my_analysis.py')
+## 🔄 **Three Ways to Run: Your Choice**
 
-# Now run like any Python script:
-python my_analysis_run.py
+### **📓 Interactive Mode (Debugging & Exploration)**
+```python
+# Open conductor.py as notebook in VS Code/Jupyter
+# Run cells interactively with dataframe orchestration 
+# Debug any flow by opening flow/analysis.py as notebook
+# Execute single instances interactively for troubleshooting
 ```
 
-### **Option 3: Standalone Python Script (when needed)**
-```python
-# Convert flow to pure Python script if you need it
-from ductacore import create_standalone_python_script
-create_standalone_python_script('flow/my_analysis.py')
-
-# Result: my_analysis_standalone.py + my_analysis_config.json
-# Run like any Python script:
-python my_analysis_standalone.py
+### **💻 CLI Mode (Individual Flows)**
+```bash
+# Run single flow from command line
+python flow/my_analysis.py --config config/my_config.json
 ```
 
-**When this is useful:**
-- **Sharing with colleagues** who don't have jupyter/papermill installed
-- **Running on servers** without notebook environments  
-- **Batch processing** where you want simple command-line execution
-- **CI/CD pipelines** that prefer standard Python scripts
-
-### **Option 4: Temporary Script Runner**
+### **🐍 Pure Python Mode (Anti-Notebook)**
 ```python
-# Create a bat file for quick one-off runs
-from ductacore import create_flow_bat_runner
-create_flow_bat_runner('flow/my_analysis.py')
+# pure_conductor.py - No notebooks, just subprocess calls
+import subprocess, pandas as pd, json
+from pathlib import Path
 
-# Double-click run_my_analysis.bat or call from conductor
-# Creates temp script → runs → cleans up automatically
+# Load scenarios
+scenarios = [
+    {'instance': 'test_A', 'param1': 100},
+    {'instance': 'test_B', 'param1': 200}
+]
+
+for scenario in scenarios:
+    # Create run directory
+    run_dir = Path(f"runs/analysis/{scenario['instance']}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save config
+    config_file = run_dir / "config.json"
+    with open(config_file, 'w') as f:
+        json.dump(scenario, f)
+    
+    # Run flow as script (uses if __name__ == "__main__")
+    subprocess.run([
+        'python', 'flow/my_analysis.py', 
+        '--config', str(config_file)
+    ], cwd=run_dir)
 ```
 
-**Handy for:** Quick execution without cluttering your workspace with script files.
+**🎯 The Point:** Same flows, same results - whether you love notebooks, prefer CLI, or want pure Python scripts.
 
-**🎯 The Point:**
-- **Same `.py file`** works as notebook OR script - your choice
-- **Same config injection** regardless of how you run it
-- **Start with notebooks** for exploration, convert to scripts when needed
-- **Most of the time** you'll just use the interactive notebook experience
+## Core Dependencies
+- **papermill** - Execute notebooks programmatically
+- **jupytext** - .py ↔ .ipynb conversion
+- **pandas** - Dataframe orchestration
 
-
-## Core dependencies: 
-    ## papermill
-    ## jupytext
-    Open source python is a true blessing on the world.
-
+Open source Python is a true blessing on the world.
 
 ## Core Concepts
 
-The pipeline management pattern works as follows:
-
-1. **Notebooks as .py files**: All analysis steps are written as Jupytext .py files (percent format)
-2. **Configuration-driven**: Each execution instance uses a JSON config file for parameters
-3. **Step-based isolation**: Each flow step gets its own directory with named instances for pipeline composition
-4. **Execution artifacts**: Executed notebooks are saved with full output for debugging/review
-5. **Pipeline orchestration**: Multiple flows are chained together via a conductor script with instance referencing
+1. **Interpretable .py flows**: Analysis steps written as readable .py files with inline code that domain experts can understand
+2. **Configuration-driven**: Each execution uses JSON config for parameters
+3. **Instance isolation**: Each run gets `runs/{flow_name}/{instance_name}/` directory with full artifact capture
+4. **Debug as notebooks**: Any .py flow can be opened as interactive notebook for troubleshooting
+5. **Flexible execution**: Run as scripts for production, notebooks for debugging, pure Python for anti-notebook users
 
 ## Key Benefits
 
 - **Version Control**: .py files work seamlessly with git
-- **Reproducibility**: Full execution state captured in artifacts
-- **Parameterization**: Easy to create variations via config changes
+- **Reproducibility**: Full execution state captured
+- **Parameterization**: Easy variations via config changes
 - **Debugging**: Failed executions saved with error state
-- **Modularity**: Individual pipeline steps can be developed and tested independently
-- **Scalability**: Can be extended to run on different compute environments
-- **🔄 Easy Re-execution**: Interactive notebook experience means you can re-run any part anytime
+- **Modularity**: Individual steps developed/tested independently
+- **🔄 Easy Re-execution**: Interactive notebook experience for iteration
 
 ## 🔄 Why Re-executability Matters
 
-**The Problem:** Traditional pipeline tools make it painful to iterate - you change one parameter and have to restart everything, or you fix a bug and can't easily re-run just the affected parts.
+**The Problem:** Traditional pipeline tools make iteration painful - change one parameter, restart everything.
 
-**The ductaflow Solution:** Everything is a notebook, so everything is easily re-executable:
+**The ductaflow Solution:** Everything is a notebook, everything is re-executable:
 
-- **🐛 Bug fixes:** Fix a flow step → re-run just that cell in your conductor → updated results flow downstream
-- **📊 Parameter changes:** Modify your control dataframe → re-run the iteration loop → only new/changed instances execute  
-- **🆕 Add scenarios:** Add new rows to your dataframe → run just those new cells → seamlessly extend your analysis
-- **🔧 Client requests:** "Can you change the threshold?" → modify config → re-execute → deliver updated results in minutes
-- **🧪 Experimentation:** Try different approaches interactively, compare results, keep what works
+- **🐛 Bug fixes:** Fix flow → re-run cell → updated results
+- **📊 Parameter changes:** Modify dataframe → re-run loop → only changed instances execute  
+- **🆕 Add scenarios:** Add dataframe rows → run new cells → extend analysis
+- **🔧 Client requests:** Modify config → re-execute → deliver results in minutes
 
-**No complex DAG management, no pipeline restart headaches** - just the natural flow of interactive notebooks with reproducibility.
+No complex DAG management, no pipeline restart headaches.
 
-## 🎯 Key Pattern: Dataframe-Driven Instance Generation in the conductor
+## 🎯 Key Pattern: Dataframe-Driven Orchestration
 
-**The Constraint:** You want to generate dozens/hundreds of analysis instances systematically, not manually.
-
-**The Solution:** Use a control dataframe in your conductor notebook where each row defines an instance:
+**Use control dataframe where each row = one analysis instance:**
 
 ```python
 # %% 
@@ -141,8 +121,6 @@ control_df = pd.DataFrame({
     'instance_name': ['scenario_A', 'scenario_B', 'scenario_C'],
     'network_base': ['NET_2024', 'NET_2024', 'NET_2025'], 
     'network_new': ['NET_2025_OPT1', 'NET_2025_OPT2', 'NET_2026'],
-    'client_group': ['transport', 'transport', 'planning'],
-    'project': ['SEQ_analysis', 'SEQ_analysis', 'future_networks'],
     'param1': [100, 200, 150],
     'param2': ['mode_A', 'mode_B', 'mode_A']
 })
@@ -162,183 +140,80 @@ for i in range(len(control_df)):
         }
     }
     
-    # Function to ducatacore.run_notebook to execute the current flow
-    run_step_flow(
-        notebook_path="flow/network_analysis.py",
-        step_name="network_analysis", 
-        instance_name=row['instance_name'],
+    # Execute flow with config
+    run_notebook(
+        notebook_file="flow/network_analysis.py",
         config=config
     )
-    
-    # Export to client directory structure
-    source_dir = f"./runs/network_analysis/{row['instance_name']}"
-    dest_dir = f"/client_delivery/{row['client_group']}/{row['project']}/{row['instance_name']}"
-    
-    if os.path.exists(source_dir):
-        shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
-        print(f"✅ Exported {row['instance_name']} to {dest_dir}")
 ```
 
-**Result:** Systematic generation + organized delivery to clients, all trackable and reproducible.
+**Result:** Systematic generation of analysis instances, all trackable and reproducible.
 
-## 🚀 Quick Setup: Copy Template
+## Flow Structure
 
-```python
-from ductacore import make_new_ductaflow_instance
-
-# Copy entire ductaflow template to new project
-make_new_ductaflow_instance("my_analysis")
-
-# Result: Complete ductaflow copy ready to customize
-# my_analysis/
-# ├── code/                    # ductacore utilities (copied)
-# ├── flow/                    # Example flows (copied)  
-# ├── runs/                    # Ready for results
-# ├── cnd_my_analysis.py       # Renamed conductor
-# ├── README.md               # This documentation
-# └── ductaflow_version.txt   # Git commit info
-```
-
-**Simple template copy:**
-- Copies entire working ductaflow
-- Renames conductor with your project name  
-- Captures git version for reproducibility
-- Ready to customize and run
-
-#### note 1. Parameters Cell in your flow.py's (REQUIRED)
+### 1. Parameters Cell (REQUIRED)
 ```python
 # %% tags=["parameters"]
-# Parameters cell - will be injected by papermill
+# Parameters cell - injected by papermill
 config = {}
-# Pattern: Bulk processor coordinates multiple flow instances
-for time_period in ["am", "pm"]:
-    for category in categories:
-        for zone_system in ["L2", "L4", "SCRAM"]:
-            # Generate vector inputs instance
-            vector_config = create_vector_config(time_period, category, zone_system)
-            run_step_flow("generate_vector_inputs", f"{zone_system}_{category}_{time_period}", vector_config)
-            
-            # Generate visualization instance
-            viz_config = create_viz_config(vector_instance=f"{zone_system}_{category}_{time_period}")
-            run_step_flow("generate_stock_view", f"view_{zone_system}_{category}_{time_period}", viz_config)
-
-# Meta-flow combines multiple instances
-run_step_flow("generate_bulk_index", "combined_outputs", {
-    "source_instances": get_all_instances("generate_stock_view"),
-    "collated_output_path": "./runs/bulk_outputs/"
-})
 ```
-**Critical**: This cell MUST be tagged with `["parameters"]` for papermill execution. Without this cell, ductaflow execution will fail.
 
-#### note 2. Add this to drop need for config['{name}'] and just have name of object in code
-Configuration instance value handling cell
+### 2. CLI Mode Block (for dual functionality)
 ```python
-# %%
-# Configuration handling - ductaflow pattern
-if 'config' in locals() and config:
+# %% CLI Mode - Same file works as notebook AND script
+if __name__ == "__main__":
+    import argparse, json
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='config/base.json')
+    args = parser.parse_args()
+    
+    # Load and inject config
+    with open(args.config) as f:
+        config = json.load(f)
+    
+    # Inject variables into globals
     for key, value in config.items():
         if isinstance(value, dict):
-            locals()[key] = value
+            globals()[key] = value
             for sub_key, sub_value in value.items():
-                locals()[sub_key] = sub_value
+                globals()[sub_key] = sub_value
         else:
-            locals()[key] = value
+            globals()[key] = value
 ```
-**Key Benefits:**
-- **Mass Production**: Generate hundreds of analysis variants systematically
-- **Smart Caching**: Skip existing instances to enable incremental processing  
-- **Collated Outputs**: Centralized organization of bulk results with indexes
-- **Meta-Composition**: Flows that consume outputs from multiple other flow instances
 
-#### note 3. Code is for pys that arent a module yet but need to add it to path
+### 3. Config Display (optional but helpful)
 ```python
 # %%
-import sys
-# Add code directory to path for imports (executed from runs/step_name/instance_name/)
-sys.path.append('../../../code')
-from your_modules import your_functions
-**Directory Structure:**
+from ductaflow import display_config_summary
+display_config_summary(config, "My Analysis")
 ```
 
-### Path Context Awareness
-
-**CRITICAL**: Ductaflow notebooks execute from the context: `runs/{step_name}/{instance_name}/`
-
-The `run_step_flow` function in conductor.py:
-1. Changes to the output directory: `os.chdir(output_dir)` 
-2. Calls `run_notebook()` from `runs/{step_name}/{instance_name}/`
-3. **Papermill executes your notebook from this directory - no further `os.chdir()` needed!**
-
-**All relative paths must account for this execution context:**
-- Code imports: `sys.path.append('../../../code')`  
-- Input data: `../../../inputs/your_data.csv`
-- Previous step outputs: `../../previous_step_name/instance_name/output.parquet`
-
-**Do NOT use `os.chdir()` in notebooks** - you're already in the correct execution directory!
-
-### Configuration Pattern
-
-- Config dict gets passed and all keys that don't have a nested dict as their value become local variables
-- Record of config.json always stored in run folder
-- Config values displayed as markdown at top of executed notebook
-- Nested dictionary handling preserves parent dictionaries while flattening child keys
-
-## Original Notes
-- config dict always gets passed and all keys that dont have a nested dict as their value become local variables in the executed instance
-- record of config.json always stored in run folder
-- config values displayed as markdown at top of executed notebook
-- if you have a custom output location you will need to have ductacore accesible to python so need to update the sys.path.append('../../../code') line in the flow you are making
-
-
-
-
-
-## Advanced Orchestration Patterns
-
-### Flow-of-Flows (Bulk Processing)
-For complex scenarios requiring many combinations of parameters/datasets, ductaflow supports **bulk orchestration**:
-
+### 4. Your Analysis Code
 ```python
-# Pattern: Bulk processor coordinates multiple flow instances
-for time_period in ["am", "pm"]:
-    for category in categories:
-        for zone_system in ["L2", "L4", "SCRAM"]:
-            # Generate vector inputs instance
-            vector_config = create_vector_config(time_period, category, zone_system)
-            run_step_flow("generate_vector_inputs", f"{zone_system}_{category}_{time_period}", vector_config)
-            
-            # Generate visualization instance
-            viz_config = create_viz_config(vector_instance=f"{zone_system}_{category}_{time_period}")
-            run_step_flow("generate_stock_view", f"view_{zone_system}_{category}_{time_period}", viz_config)
-
-# Meta-flow combines multiple instances
-run_step_flow("generate_bulk_index", "combined_outputs", {
-    "source_instances": get_all_instances("generate_stock_view"),
-    "collated_output_path": "./runs/bulk_outputs/"
-})
+# %%
+# Your actual analysis using config variables
+print(f"Processing {network_base} → {network_new}")
+# ... rest of your analysis
 ```
 
-**Key Benefits:**
-- **Mass Production**: Generate hundreds of analysis variants systematically
-- **Smart Caching**: Skip existing instances to enable incremental processing  
-- **Collated Outputs**: Centralized organization of bulk results with indexes
-- **Meta-Composition**: Flows that consume outputs from multiple other flow instances
+## Path Context
 
-**Directory Structure:**
-```
-runs/
-├── generate_vector_inputs/          # Atomic step instances
-│   ├── L2_dwellings_am/
-│   ├── L2_dwellings_pm/
-│   ├── L4_employment_am/
-│   └── SCRAM_trips_am/
-├── generate_stock_view/             # Dependent instances
-│   ├── view_L2_dwellings_am/
-│   └── view_L4_employment_am/
-└── generate_bulk_index/             # Meta-composition instances
-    └── combined_outputs/
-        ├── index.html               # Collated navigation
-        └── bulk_summary.json        # Processing metadata
+**CRITICAL:** Notebooks execute from `runs/{flow_name}/{instance_name}/`
+
+All relative paths must account for this:
+- Code imports: `sys.path.append('../../../code')`  
+- Input data: `../../../inputs/data.csv`
+- Previous outputs: `../../other_flow/instance/output.parquet`
+
+## Installation Options
+
+```bash
+# Basic install
+pip install -e .
+
+# With HTML export support (optional)
+pip install -e .[html]    # Adds nbconvert for HTML reports
 ```
 
-
+**JSON configs only** - Simple, built into Python, no extra dependencies.

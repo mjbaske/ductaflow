@@ -51,24 +51,16 @@ def run_step_flow(notebook_path, step_name, instance_name, config):
     
     notebook_path = Path(notebook_path).resolve()
 
-    try:
-        # 3. Execute notebook with directory switching
-        original_dir = os.getcwd()
-        os.chdir(output_dir)
-        
-        executed_notebook = run_notebook(
-            notebook_file=notebook_path,
-            config=config,
-            notebooks_dir=original_dir,
-            output_suffix="_executed"
-        )
-        
-        print(f"✅ Completed: {executed_notebook}")
-        return executed_notebook, output_dir
-        
-    finally:
-        # 4. Always return to original directory
-        os.chdir(original_dir)
+    # 3. Execute notebook with execution directory (ductacore handles directory switching)
+    executed_notebook = run_notebook(
+        notebook_file=notebook_path,
+        config=config,
+        output_suffix="_executed",
+        execution_dir=output_dir
+    )
+    
+    print(f"✅ Completed: {executed_notebook}")
+    return executed_notebook, output_dir
 
 # %%
 def get_available_instances(step_name):
