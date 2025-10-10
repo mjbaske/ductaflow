@@ -252,6 +252,14 @@ def load_cli_config(default_config_path: str = 'config/config.json', description
         os.chdir(output_dir)
         print(f"📁 Changed to execution directory: {output_dir}")
         print(f"🚀 Running as CLI script in: {os.getcwd()}")
+        
+        # Save config to output directory for reproducibility
+        import sys
+        flow_name = Path(sys.argv[0]).stem if sys.argv else "flow"
+        config_filename = f"{flow_name}_config.json"
+        with open(config_filename, 'w') as f:
+            json.dump(config, f, indent=2, default=str)
+        print(f"💾 Saved config to: {config_filename}")
     else:
         print(f"🚀 Running as CLI script in: {os.getcwd()}")
     
@@ -335,6 +343,12 @@ def run_notebook(notebook_file: Union[str, Path],
             original_cwd = os.getcwd()
             os.chdir(execution_dir)
             print(f"📁 Changed to execution directory: {execution_dir}")
+        
+        # Save config to output directory for reproducibility
+        config_filename = f"{notebook_file.stem}_config.json"
+        with open(config_filename, 'w') as f:
+            json.dump(config, f, indent=2, default=str)
+        print(f"💾 Saved config to: {config_filename}")
         
         # Set up papermill execution parameters
         execute_params = {
