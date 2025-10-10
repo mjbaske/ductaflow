@@ -7,6 +7,7 @@ A simple, powerful framework for reproducible data pipelines using notebooks.
 from .ductacore import (
     # Core execution functions
     run_notebook,
+    run_step_flow,
     
     # Configuration display
     display_config_summary,
@@ -16,7 +17,8 @@ from .ductacore import (
     convert_notebook_to_html,
     
     # Utilities
-    setup_logging
+    setup_logging,
+    load_cli_config
 )
 
 __version__ = "0.3.0"
@@ -26,8 +28,10 @@ __description__ = "The pipeline framework that actually works in practice"
 # Make key functions easily accessible
 __all__ = [
     'run_notebook',
+    'run_step_flow',
     'display_config_summary',
     'generate_config_markdown',
     'convert_notebook_to_html',
-    'setup_logging'
+    'setup_logging',
+    'load_cli_config'
 ]

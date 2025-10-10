@@ -221,14 +221,44 @@ for variant in analysis_variants:
     })
     
     # Execute with descriptive instance name
-    run_step_flow(
-        notebook_path="flow/03_analyze.py",
-        step_name="analysis",
-        instance_name=f"{variant}_report",
-        config=variant_config
+    output_dir = f"runs/analysis/{variant}_report"
+    run_notebook(
+        notebook_file="flow/03_analyze.py",
+        config=variant_config,
+        execution_dir=output_dir
     )
 
 print("✅ Multiple analysis reports created using configuration reuse")
+
+# %% [markdown]
+# ## Multiple Flow Iterations (Using Suffix)
+
+# %%
+# Example: Run same flow multiple times with different parameters
+optimization_base_config = {
+    "algorithm": "gradient_descent",
+    "max_iterations": 100,
+    "learning_rate": 0.01
+}
+
+for iteration in range(3):
+    iteration_config = copy.deepcopy(optimization_base_config)
+    iteration_config.update({
+        "iteration_number": iteration,
+        "learning_rate": 0.01 * (0.9 ** iteration),  # Decay learning rate
+        "random_seed": 42 + iteration
+    })
+    
+    # Use suffix to avoid directory collisions
+    run_step_flow(
+        notebook_path="flow/03_analyze.py",
+        step_name="optimization",
+        instance_name="gradient_descent",
+        config=iteration_config,
+        suffix=f"_iter_{iteration:02d}"  # Creates: optimization/gradient_descent_iter_00, _iter_01, etc.
+    )
+
+print("✅ Multiple optimization iterations completed with unique directories")
 
 # %% [markdown]
 # ## Alternative Processing Pipeline
@@ -242,11 +272,11 @@ alt_processing_config.update({
     "experimental_features": True
 })
 
-run_step_flow(
-    notebook_path="flow/02_process_data.py",
-    step_name="process_data",
-    instance_name="weekly_aggregates",
-    config=alt_processing_config
+output_dir = "runs/process_data/weekly_aggregates"
+run_notebook(
+    notebook_file="flow/02_process_data.py",
+    config=alt_processing_config,
+    execution_dir=output_dir
 )
 
 # Create analysis using the alternative processing
@@ -256,11 +286,11 @@ alt_analysis_config.update({
     "report_title": "Weekly Analysis Report"
 })
 
-run_step_flow(
-    notebook_path="flow/03_analyze.py",
-    step_name="analysis", 
-    instance_name="weekly_report",
-    config=alt_analysis_config
+output_dir = "runs/analysis/weekly_report"
+run_notebook(
+    notebook_file="flow/03_analyze.py",
+    config=alt_analysis_config,
+    execution_dir=output_dir
 )
 
 

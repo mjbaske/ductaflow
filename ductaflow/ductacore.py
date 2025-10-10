@@ -211,6 +211,53 @@ def convert_notebook_to_html(notebook_path: Union[str, Path],
 
 
 # %% [markdown]
+# ## CLI Helper Function
+
+# %%
+def load_cli_config(default_config_path: str = 'config/config.json', description: str = 'Run ductaflow analysis') -> Dict[str, Any]:
+    """
+    Handle command-line argument parsing and config loading for flow CLI mode.
+    
+    Parses --config and --output-dir arguments, loads JSON config file, and optionally 
+    changes to execution directory to match ductaflow behavior.
+    
+    Args:
+        default_config_path: Default path to config file if --config not provided
+        description: Description for the argument parser
+    
+    Returns:
+        Dictionary containing loaded configuration
+    """
+    import argparse
+    import json
+    import os
+    from pathlib import Path
+    
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--config', type=str, default=default_config_path,
+                       help='Path to JSON config file')
+    parser.add_argument('--output-dir', type=str, default=None,
+                       help='Output directory to execute in (matches ductaflow behavior)')
+    args = parser.parse_args()
+    
+    with open(args.config, 'r') as f:
+        config = json.load(f)
+    
+    print(f"📊 Loaded config from {args.config}")
+    
+    # Change to output directory if specified (matches ductaflow execution_dir behavior)
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        os.chdir(output_dir)
+        print(f"📁 Changed to execution directory: {output_dir}")
+        print(f"🚀 Running as CLI script in: {os.getcwd()}")
+    else:
+        print(f"🚀 Running as CLI script in: {os.getcwd()}")
+    
+    return config
+
+# %% [markdown]
 # ## Core Notebook Execution Function
 
 # %%
@@ -333,3 +380,33 @@ def run_notebook(notebook_file: Union[str, Path],
         # Clean up temporary files
         if temp_ipynb and temp_ipynb.exists():
             temp_ipynb.unlink()
+    
+    return output_path
+
+# %%
+def run_step_flow(notebook_path: str, step_name: str, instance_name: str, config: Dict[str, Any], suffix: str = "") -> Path:
+    """
+    Execute a flow with automatic directory management (default ductaflow pattern).
+    
+    Args:
+        notebook_path: Path to the .py flow file
+        step_name: Name of the step (creates runs/{step_name}/ directory)
+        instance_name: Name of this instance (creates runs/{step_name}/{instance_name}/)
+        config: Configuration dictionary to inject as parameters
+        suffix: Optional suffix for multiple calls to same flow (e.g., iteration number)
+    
+    Returns:
+        Path to executed notebook
+    """
+    # Build full instance name with suffix if provided
+    full_instance_name = f"{instance_name}{suffix}" if suffix else instance_name
+    
+    # Create output directory structure
+    output_dir = Path(f"runs/{step_name}/{full_instance_name}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    return run_notebook(
+        notebook_file=notebook_path,
+        config=config,
+        execution_dir=output_dir
+    )

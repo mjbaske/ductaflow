@@ -38,8 +38,8 @@ your_project/
 
 ### **💻 CLI Mode (Individual Flows)**
 ```bash
-# Run single flow from command line
-python flow/my_analysis.py --config config/my_config.json
+# Run single flow from command line with output directory
+python flow/my_analysis.py --config config/my_config.json --output-dir runs/analysis/my_run
 ```
 
 ### **🐍 Pure Python Mode (Anti-Notebook)**
@@ -67,8 +67,9 @@ for scenario in scenarios:
     # Run flow as script (uses if __name__ == "__main__")
     subprocess.run([
         'python', 'flow/my_analysis.py', 
-        '--config', str(config_file)
-    ], cwd=run_dir)
+        '--config', str(config_file),
+        '--output-dir', str(run_dir)
+    ])
 ```
 
 **🎯 The Point:** Same flows, same results - whether you love notebooks, prefer CLI, or want pure Python scripts.
@@ -162,25 +163,9 @@ config = {}
 ```python
 # %% CLI Mode - Same file works as notebook AND script
 if __name__ == "__main__":
-    import argparse, json
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='config/base.json')
-    args = parser.parse_args()
-    
-    # Load and inject config
-    with open(args.config) as f:
-        config = json.load(f)
-    
-    # Inject variables into globals
-    for key, value in config.items():
-        if isinstance(value, dict):
-            globals()[key] = value
-            for sub_key, sub_value in value.items():
-                globals()[sub_key] = sub_value
-        else:
-            globals()[key] = value
-```
+    from ductaflow import load_cli_config
+    # Handle CLI arguments and load JSON config file 
+    config = load_cli_config(default_config_path='config/base.json', description='Run my analysis')
 
 ### 3. Config Display (optional but helpful)
 ```python
@@ -197,16 +182,38 @@ print(f"Processing {network_base} → {network_new}")
 # ... rest of your analysis
 ```
 
-## Path Context
+## Execution Options
 
-**CRITICAL:** Notebooks execute from `runs/{flow_name}/{instance_name}/`
+### Interactive Mode (Notebook)
+```bash
+# Open flow as notebook in Jupyter/VS Code
+code flow/my_analysis.py  # Opens as notebook
+```
 
-All relative paths must account for this:
-- Code imports: `sys.path.append('../../../code')`  
-- Input data: `../../../inputs/data.csv`
-- Previous outputs: `../../other_flow/instance/output.parquet`
+### CLI Mode (Script)
+```bash
+# Basic CLI execution (runs in flow/ directory)
+python flow/my_analysis.py --config config/experiment_1.json
 
-## Installation Options
+# CLI with output directory (matches ductaflow behavior)
+python flow/my_analysis.py \
+  --config config/experiment_1.json \
+  --output-dir runs/analysis/experiment_1
+```
+
+### Programmatic Mode (ductaflow)
+```python
+from ductaflow import run_step_flow
+
+run_step_flow(
+    notebook_path="flow/my_analysis.py",
+    step_name="analysis",
+    instance_name="experiment_1", 
+    config=config
+)
+```
+
+## Installation
 
 ```bash
 # Basic install

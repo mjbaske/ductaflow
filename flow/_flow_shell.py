@@ -10,17 +10,9 @@ config = {}
 # Note: config json is always passed as a parameter and any key value at level zero or one gets created as a local var in the executed notebook
 
 # %% CLI Mode - Same file works as notebook AND script
-if __name__ == "__main__":
-    import argparse
-    import json
-    parser = argparse.ArgumentParser(description='Run Flow Shell analysis')
-    parser.add_argument('--config', type=str, default='config/flow_shell.json',
-                       help='Path to JSON config file')
-    args = parser.parse_args()
-    with open(args.config, 'r') as f:
-        config = json.load(f)
-    print(f"📊 Loaded config from {args.config}")
-    print(f"🚀 Running {__file__} as CLI script")
+if __name__ == "__main__": 
+    from ductaflow import load_cli_config
+    config = load_cli_config('config/flow_shell.json', 'Run Flow Shell analysis')  # If called from CLI, this will load the config from file given by --config argument or default out to config/flow_shell.json
 
 # %%
 # Import required libraries and display configuration
