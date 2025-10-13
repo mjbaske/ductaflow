@@ -18,7 +18,8 @@ from .ductacore import (
     
     # Utilities
     setup_logging,
-    load_cli_config
+    load_cli_config,
+    is_notebook_execution
 )
 
 __version__ = "0.3.0"
@@ -33,5 +34,6 @@ __all__ = [
     'generate_config_markdown',
     'convert_notebook_to_html',
     'setup_logging',
-    'load_cli_config'
+    'load_cli_config',
+    'is_notebook_execution'
 ]

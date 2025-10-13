@@ -214,6 +214,32 @@ def convert_notebook_to_html(notebook_path: Union[str, Path],
 # ## CLI Helper Function
 
 # %%
+def is_notebook_execution() -> bool:
+    """
+    Check if we're in notebook/papermill execution vs CLI.
+    
+    Returns:
+        True if notebook/papermill execution, False if CLI
+    """
+    import sys
+    
+    # Method 1: Check for IPython/Jupyter environment (most reliable)
+    try:
+        # This will exist in both interactive notebooks and papermill execution
+        from IPython import get_ipython
+        if get_ipython() is not None:
+            return True
+    except ImportError:
+        pass
+    
+    # Method 2: Check for CLI arguments (fallback)
+    # If we have CLI args like --config, we're definitely in CLI mode
+    if len(sys.argv) > 1 and any(arg.startswith('--') for arg in sys.argv[1:]):
+        return False
+    
+    # Method 3: Default to notebook execution if uncertain
+    return True
+
 def load_cli_config(default_config_path: str = 'config/config.json', description: str = 'Run ductaflow analysis') -> Dict[str, Any]:
     """
     Handle command-line argument parsing and config loading for flow CLI mode.

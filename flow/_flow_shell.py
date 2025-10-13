@@ -10,9 +10,11 @@ config = {}
 # Note: config json is always passed as a parameter and any key value at level zero or one gets created as a local var in the executed notebook
 
 # %% CLI Mode - Same file works as notebook AND script
-if __name__ == "__main__": 
-    from ductaflow import load_cli_config
-    config = load_cli_config('config/flow_shell.json', 'Run Flow Shell analysis')  # If called from CLI, this will load the config from file given by --config argument or default out to config/flow_shell.json
+from ductaflow import is_notebook_execution, load_cli_config, display_config_summary
+
+if not is_notebook_execution():
+    # CLI mode: load config from --config argument
+    config = load_cli_config('config/flow_shell.json', 'Run Flow Shell analysis')
 
 # %%
 # Import required libraries and display configuration
@@ -25,8 +27,6 @@ import numpy as np
 
 # Import ductaflow (works after pip install -e .)
 pipeline_name = 'Flow Shell'
-
-from ductaflow import display_config_summary
 
 # %%
 # Extract all config parameters as local variables (standardized unpacking)
