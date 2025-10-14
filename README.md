@@ -92,11 +92,12 @@ Open source Python is a true blessing on the world.
 ## Key Benefits
 
 - **Version Control**: .py files work seamlessly with git
-- **Reproducibility**: Full execution state captured
+- **Reproducibility**: Full execution state captured + automatic config saving
 - **Parameterization**: Easy variations via config changes
 - **Debugging**: Failed executions saved with error state
 - **Modularity**: Individual steps developed/tested independently
 - **🔄 Easy Re-execution**: Interactive notebook experience for iteration
+- **Robust Execution**: Same flows work as notebooks, CLI scripts, or pure Python calls
 
 ## 🔄 Why Re-executability Matters
 
@@ -162,10 +163,12 @@ config = {}
 ### 2. CLI Mode Block (for dual functionality)
 ```python
 # %% CLI Mode - Same file works as notebook AND script
-if __name__ == "__main__":
-    from ductaflow import load_cli_config
-    # Handle CLI arguments and load JSON config file 
-    config = load_cli_config(default_config_path='config/base.json', description='Run my analysis')
+from ductaflow import is_notebook_execution, load_cli_config
+
+if not is_notebook_execution():
+    # CLI mode: load config from --config argument
+    config = load_cli_config('config/base.json', 'Run my analysis')
+```
 
 ### 3. Config Display (optional but helpful)
 ```python
@@ -177,7 +180,11 @@ display_config_summary(config, "My Analysis")
 ### 4. Your Analysis Code
 ```python
 # %%
-# Your actual analysis using config variables
+# Config variables are automatically available
+# (injected by papermill or loaded by CLI)
+network_base = config['network_base']
+network_new = config['network_new']
+
 print(f"Processing {network_base} → {network_new}")
 # ... rest of your analysis
 ```
@@ -206,7 +213,7 @@ python flow/my_analysis.py \
 from ductaflow import run_step_flow
 
 run_step_flow(
-    notebook_path="flow/my_analysis.py",
+    notebook_file="flow/my_analysis.py",
     step_name="analysis",
     instance_name="experiment_1", 
     config=config
