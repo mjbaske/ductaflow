@@ -483,15 +483,4 @@ run_notebook(
     config=config
 )
 ```
-
-## Installation
-
-```bash
-# Basic install
-pip install -e .
-
-# With HTML export support (optional)
-pip install -e .[html]    # Adds nbconvert for HTML reports
-```
-
 **JSON configs only** - Simple, built into Python, no extra dependencies.
