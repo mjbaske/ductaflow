@@ -1,0 +1,4 @@
+{
+  "description": "Flow Shell 2 - processes data from Flow Shell 1",
+  "output_format": "json"
+}

@@ -1,23 +1,29 @@
 """
-ductaflow - The pipeline framework that actually works in practice.
+ductaflow - The simple pipeline framework
 
 A simple, powerful framework for reproducible data pipelines using notebooks.
 """
 
-from .ductacore import (
+from .ductaflow import (
     # Core execution functions
     run_notebook,
     run_step_flow,
-    
-    # Configuration display
+    debug_flow,
+
+
+    # Configuration handling
     display_config_summary,
     generate_config_markdown,
-    
+    unpack_config,
+
+    # Status analysis
+    analyze_execution_logs,
+    generate_status_report,
+
     # HTML export
     convert_notebook_to_html,
-    
+
     # Utilities
-    setup_logging,
     load_cli_config,
     is_notebook_execution
 )
@@ -30,10 +36,13 @@ __description__ = "The pipeline framework that actually works in practice"
 __all__ = [
     'run_notebook',
     'run_step_flow',
+    'debug_flow',
     'display_config_summary',
     'generate_config_markdown',
+    'unpack_config',
+    'analyze_execution_logs',
+    'generate_status_report',
     'convert_notebook_to_html',
-    'setup_logging',
     'load_cli_config',
     'is_notebook_execution'
 ]

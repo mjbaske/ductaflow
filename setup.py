@@ -1,5 +1,5 @@
 """
-Setup file for ductaflow - The pipeline framework that actually works in practice.
+Setup file for ductaflow - The simple pipeline framework
 """
 
 from setuptools import setup, find_packages
@@ -11,7 +11,7 @@ if readme_path.exists():
     with open(readme_path, "r", encoding="utf-8") as f:
         long_description = f.read()
 else:
-    long_description = "The pipeline framework that actually works in practice."
+    long_description = "The simple pipeline framework"
 
 setup(
     name="ductaflow",
@@ -20,12 +20,13 @@ setup(
     description="The pipeline framework that actually works in practice",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=find_packages(),
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
+        "License :: None"
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
@@ -44,19 +45,11 @@ setup(
     ],
     extras_require={
         "html": ["nbconvert>=6.0.0"],
-        "dev": [
-            "pytest>=6.0",
-            "black>=21.0",
-            "flake8>=3.8",
-        ],
     },
     include_package_data=True,
-    package_data={
-        "ductaflow": ["flow/*.py"],
-    },
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/ductaflow/issues",
-        "Source": "https://github.com/yourusername/ductaflow",
-        "Documentation": "https://github.com/yourusername/ductaflow/blob/main/README.md",
+        "Bug Reports": "https://github.com/mjbaske/ductaflow/issues",
+        "Source": "https://github.com/mjbaske/ductaflow",
+        "Documentation": "https://github.com/mjbaske/ductaflow/blob/main/README.md",
     },
 )

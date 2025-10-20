@@ -1,0 +1,6 @@
+{
+  "description": "Flow Shell 1 - creates sample data",
+  "processing_mode": "standard",
+  "iterations": 10,
+  "output_format": "csv"
+}

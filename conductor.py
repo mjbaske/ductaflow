@@ -1,298 +1,252 @@
 # %% [markdown]
-# # Ductaflow Conductor
-#
-# This template demonstrates the step-based pattern discovered through real-world implementation.
-# Shows general data pipeline patterns without domain-specific complexity.
+# # DUCTAFLOW Conductor - Multi-Scenario Orchestrator
+# 
+# The conductor orchestrates builds across scenario dimensions.
+# It takes a base configuration and varies it across specified dimensions,
+# running builds for each scenario combination.
+# 
+# **Architecture**:
+# - Conductor calls builds over outer scenario dimensions
+# - Builds orchestrate flows in sequence
+# - Flows are atomic processing stages
 
 # %%
-import sys
-import os
 from pathlib import Path
-from datetime import datetime
 import json
+from datetime import datetime
+from itertools import product
 import copy
 
-# Always add reference directory
-sys.path.append('code')
-
-try:
-    from ductacore import run_notebook
-    print("✅ ductaflow framework loaded")
-except ImportError as e:
-    print(f"❌ Error: {e}")
+# Import ductaflow utilities
+from ductaflow import run_notebook, analyze_execution_logs, generate_status_report
 
 # %% [markdown]
-# ## Step-Based Pattern (RECOMMENDED)
+# ## Base Configuration
 
 # %%
-def run_step_flow(notebook_path, step_name, instance_name, config):
-    """
-    STEP-BASED PATTERN - Execute notebook with step-based instance management
-    
-    Pattern: runs/{step_name}/{instance_name}/
-    Benefits: Pipeline composition, dependency tracking, multiple variations
-    """
-    
-    # 1. Create step-based directory structure
-    step_dir = Path("runs") / step_name
-    step_dir.mkdir(parents=True, exist_ok=True)
-    
-    output_dir = step_dir / instance_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 2. Save configuration
-    config_path = output_dir / "CONFIG.json"
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=2)
-    
-    print(f"🚀 Executing Step: {step_name}")
-    print(f"📋 Instance: {instance_name}")
-    print(f"📁 Output: {output_dir}")
-    
-    notebook_path = Path(notebook_path).resolve()
+# Model root and base configuration
+model_root = Path("./runs/conductor_runs")
 
-    # 3. Execute notebook with execution directory (ductacore handles directory switching)
-    executed_notebook = run_notebook(
-        notebook_file=notebook_path,
-        config=config,
-        output_suffix="_executed",
-        execution_dir=output_dir
-    )
-    
-    print(f"✅ Completed: {executed_notebook}")
-    return executed_notebook, output_dir
-
-# %%
-def get_available_instances(step_name):
-    """
-    Get available instances for a given step
-    Returns list of instance names for dependency selection
-    """
-    step_dir = Path("runs") / step_name
-    if not step_dir.exists():
-        return []
-    
-    instances = [d.name for d in step_dir.iterdir() if d.is_dir()]
-    return sorted(instances)
-
-def print_available_instances(step_name, description=""):
-    """Display available instances with helpful formatting"""
-    instances = get_available_instances(step_name)
-    if instances:
-        print(f"\n📋 Available {step_name} instances{description}:")
-        for i, instance in enumerate(instances, 1):
-            # Try to get additional info from config
-            config_path = Path("runs") / step_name / instance / "CONFIG.json"
-            info = ""
-            if config_path.exists():
-                try:
-                    with open(config_path, 'r') as f:
-                        config = json.load(f)
-                    # Add any relevant config info to display
-                    if 'data_sources' in config:
-                        data_source_count = len(config['data_sources'])
-                        info = f" - {data_source_count} data sources"
-                    elif 'processing_mode' in config:
-                        info = f" - {config['processing_mode']} mode"
-                except:
-                    pass
-            print(f"   {i}. {instance}{info}")
-    else:
-        print(f"\n⚠️  No {step_name} instances found")
-
-def print_pipeline_status():
-    """Display current pipeline state and dependencies"""
-    runs_dir = Path("runs")
-    if not runs_dir.exists():
-        print("📊 No pipeline runs found")
-        return
-    
-    print("\n📊 Pipeline Status:")
-    steps = [d.name for d in runs_dir.iterdir() if d.is_dir()]
-    for step in sorted(steps):
-        instances = get_available_instances(step)
-        print(f"   {step}: {len(instances)} instances")
-        for instance in instances:
-            print(f"      - {instance}")
-
-# %% [markdown]
-# ## General Data Pipeline Example
-# 
-# This demonstrates a typical 3-step data processing pipeline:
-# 1. Data preparation/ingestion
-# 2. Data processing/transformation  
-# 3. Analysis/reporting
-
-# %%
-# Load control dataframe for systematic instance generation
-import pandas as pd
-import os
-import shutil
-
-control_df = pd.DataFrame({
-    'instance_name': ['NET_2025_OPT1', 'NET_2025_OPT2_TWB', 'NET_2026_TAU'],
-    'Network_Base': ['NET_2024_BASE', 'NET_2024_BASE', 'NET_2025_BASE'], 
-    'Network_New': ['NET_2025_OPT1', 'NET_2025_OPT2_TWB', 'NET_2026_TAU'],
-    'client_group': ['transport', 'transport', 'planning'],
-    'project': ['SEQ_Modelling', 'SEQ_Modelling', 'future_networks'],
-    'scenario_type': ['optimization', 'twb_variant', 'tau_baseline']
-})
-
-print("📊 Control Dataframe:")
-print(control_df)
-
-# %%
-# Iterate through dataframe to systematically generate instances
-for i in range(len(control_df)):
-    print(f"\n🚀 Processing instance {i+1}/{len(control_df)}")
-    print(control_df.iloc[i])
-    
-    # Extract row parameters
-    base_scenario = control_df.iloc[i]['Network_Base']
-    target_scenario = control_df.iloc[i]['Network_New']
-    instance_name = control_df.iloc[i]['instance_name']
-    
-    # Conditional logic based on scenario name (your example pattern)
-    if "TWB" in target_scenario:
-        cfn = 'Common_TWB'
-    else:
-        cfn = 'Common_TAU'
-    
-    # Build configuration from row
-    scenario_config = {
-        "base_scenario": base_scenario,
-        "target_scenario": target_scenario,
-        "common_function": cfn,
-        "scenario_type": control_df.iloc[i]['scenario_type'],
-        "processing_options": {
-            "export_format": "parquet",
-            "include_diagnostics": True
-        }
-    }
-    
-    # Execute flow step
-    run_step_flow(
-        notebook_path="flow/scenario_analysis.py",
-        step_name="scenario_analysis", 
-        instance_name=instance_name,
-        config=scenario_config
-    )
-    
-    # Export to client delivery structure (your pattern)
-    source_dir = f"./runs/scenario_analysis/{instance_name}"
-    dest_base_dir = "/mnt/n/SEQ_Modelling/#NETWORKS_4_6/Scenarios/SEQ/"
-    dest_dir = os.path.join(dest_base_dir, str(target_scenario))
-    
-    # Remove existing folder if it exists
-    if os.path.exists(dest_dir):
-        shutil.rmtree(dest_dir)
-        print(f"🗑️ Removed existing directory: {dest_dir}")
-    
-    # Copy the entire directory tree
-    if os.path.exists(source_dir):
-        shutil.copytree(source_dir, dest_dir)
-        print(f"✅ Copied {source_dir} to {dest_dir}")
-    else:
-        print(f"⚠️ Warning: Source directory {source_dir} does not exist")
-
-# %%
-# Show complete pipeline status after dataframe-driven generation
-print_pipeline_status()
-print(f"\n✅ Generated {len(control_df)} instances systematically from dataframe")
-
-
-# %% [markdown]
-# ## Configuration Reuse Pattern (inline, no functions)
-
-# %%
-# Create multiple analysis variants using copy.deepcopy
-analysis_variants = ["summary", "detailed", "executive"]
-
-for variant in analysis_variants:
-    # Create variant configuration inline
-    variant_config = copy.deepcopy(base_analysis_config)
-    variant_config.update({
-        "report_level": variant,
-        "chart_settings": {
-            "width": 1200 if variant == "detailed" else 800,
-            "height": 800 if variant == "detailed" else 600,
-            "theme": "professional" if variant == "executive" else "default"
-        }
-    })
-    
-    # Execute with descriptive instance name
-    output_dir = f"runs/analysis/{variant}_report"
-    run_notebook(
-        notebook_file="flow/03_analyze.py",
-        config=variant_config,
-        execution_dir=output_dir
-    )
-
-print("✅ Multiple analysis reports created using configuration reuse")
-
-# %% [markdown]
-# ## Multiple Flow Iterations (Using Suffix)
-
-# %%
-# Example: Run same flow multiple times with different parameters
-optimization_base_config = {
-    "algorithm": "gradient_descent",
-    "max_iterations": 100,
-    "learning_rate": 0.01
+# Base configuration (shared across all scenarios)
+base_config = {
+    "model_root": str(model_root),
+    "processing_mode": "standard",
+    "iterations": 10,
+    "output_format": "csv",
+    "analysis_type": "summary",
+    "threshold": 50.0
 }
 
-for iteration in range(3):
-    iteration_config = copy.deepcopy(optimization_base_config)
-    iteration_config.update({
-        "iteration_number": iteration,
-        "learning_rate": 0.01 * (0.9 ** iteration),  # Decay learning rate
-        "random_seed": 42 + iteration
-    })
-    
-    # Use suffix to avoid directory collisions
-    run_step_flow(
-        notebook_path="flow/03_analyze.py",
-        step_name="optimization",
-        instance_name="gradient_descent",
-        config=iteration_config,
-        suffix=f"_iter_{iteration:02d}"  # Creates: optimization/gradient_descent_iter_00, _iter_01, etc.
-    )
-
-print("✅ Multiple optimization iterations completed with unique directories")
-
 # %% [markdown]
-# ## Alternative Processing Pipeline
+# ## Scenario Dimensions
+# 
+# Define the dimensions to vary across scenarios.
+# Each dimension is a list of values to explore.
 
 # %%
-# Create alternative processing pipeline for comparison
-alt_processing_config = copy.deepcopy(processing_config)
-alt_processing_config.update({
-    "aggregation_level": "weekly",  # Different aggregation
-    "metrics": ["sum", "count"],    # Different metrics
-    "experimental_features": True
-})
+# Define scenario dimensions to explore
+scenario_dimensions = {
+    "processing_mode": [
+        {"processing_mode": "standard", "label": "Standard"},
+        {"processing_mode": "enhanced", "label": "Enhanced"}
+    ],
+    "analysis_type": [
+        {"analysis_type": "summary", "label": "Summary"},
+        {"analysis_type": "filter", "label": "Filter"}
+    ],
+    "threshold": [
+        {"threshold": 30.0, "label": "Low"},
+        {"threshold": 70.0, "label": "High"}
+    ]
+}
 
-output_dir = "runs/process_data/weekly_aggregates"
-run_notebook(
-    notebook_file="flow/02_process_data.py",
-    config=alt_processing_config,
-    execution_dir=output_dir
-)
+# Select which dimensions to actually run (for testing/partial runs)
+active_dimensions = ["processing_mode"]  # Can be subset of all dimensions
 
-# Create analysis using the alternative processing
-alt_analysis_config = copy.deepcopy(base_analysis_config)
-alt_analysis_config.update({
-    "input_instance": "weekly_aggregates",  # Reference alternative processing
-    "report_title": "Weekly Analysis Report"
-})
+print(f"Available scenario dimensions: {list(scenario_dimensions.keys())}")
+print(f"Active dimensions for this run: {active_dimensions}")
 
-output_dir = "runs/analysis/weekly_report"
-run_notebook(
-    notebook_file="flow/03_analyze.py",
-    config=alt_analysis_config,
-    execution_dir=output_dir
-)
+# %% [markdown]
+# ## Scenario Generation
 
+# %%
+def generate_scenarios(dimensions_dict, active_dims):
+    """Generate all combinations of active scenario dimensions"""
+    active_values = [dimensions_dict[dim] for dim in active_dims]
+    
+    scenarios = []
+    for combination in product(*active_values):
+        scenario = {}
+        labels = []
+        
+        for i, dim_name in enumerate(active_dims):
+            dim_config = combination[i]
+            # Merge dimension config (excluding label)
+            for key, value in dim_config.items():
+                if key != "label":
+                    scenario[key] = value
+            labels.append(dim_config["label"])
+        
+        scenario["scenario_name"] = f"Scenario_{'_'.join(labels)}"
+        scenarios.append(scenario)
+    
+    return scenarios
 
+# Generate scenarios
+scenarios = generate_scenarios(scenario_dimensions, active_dimensions)
+
+print(f"\nGenerated {len(scenarios)} scenarios:")
+for i, scenario in enumerate(scenarios, 1):
+    print(f"  {i}. {scenario['scenario_name']}")
+
+# %% [markdown]
+# ## Scenario Execution
+
+# %%
+results = []
+
+for scenario in scenarios:
+    scenario_name = scenario["scenario_name"]
+    
+    print(f"\n{'='*80}")
+    print(f"Running Scenario: {scenario_name}")
+    print(f"{'='*80}")
+    
+    # Create scenario-specific config by merging base + scenario
+    scenario_config = {
+        **base_config,
+        **scenario,
+        "run_folder": f"runs/{scenario_name}"
+    }
+    
+    # Output directory for this scenario
+    output_dir = model_root / "Model_Runs" / scenario_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save scenario config for reproducibility
+    config_path = output_dir / "config.json"
+    with open(config_path, 'w') as f:
+        json.dump(scenario_config, f, indent=2, default=str)
+    
+    print(f"Output directory: {output_dir}")
+    print(f"Config saved: {config_path}")
+    
+    # Display scenario-specific parameters
+    scenario_params = {k: v for k, v in scenario.items() if k != "scenario_name"}
+    if scenario_params:
+        print(f"Scenario parameters: {scenario_params}")
+    
+    # Run the build
+    try:
+        start_time = datetime.now()
+        
+        run_notebook(
+            notebook_file="builds/build_shell.py",  # Build orchestrates flows
+            config=scenario_config,
+            execution_dir=output_dir,
+            project_root=Path.cwd(),  # Inject project root for flexible execution
+            export_html=True
+        )
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()  # seconds
+        
+        # Simple logging - just print statements (automatically captured to files)
+        print(f"✅ Build completed: {scenario_name} | Duration: {duration:.1f}s | Path: {output_dir}")
+        
+        print(f"\n✓ Scenario {scenario_name} completed successfully!")
+        print(f"Duration: {duration:.1f} seconds")
+        
+        results.append({
+            "scenario": scenario_name,
+            "status": "success",
+            "duration_minutes": duration / 60,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            **scenario_params
+        })
+        
+    except Exception as e:
+        # Simple logging - just print statements (automatically captured to files)
+        print(f"❌ Build failed: {scenario_name} | Error: {str(e)} | Path: {output_dir}")
+        
+        print(f"\n❌ Scenario {scenario_name} failed!")
+        print(f"Error: {e}")
+        
+        results.append({
+            "scenario": scenario_name,
+            "status": "failed",
+            "error": str(e),
+            **scenario_params
+        })
+    
+    # Generate live status report after each build completes
+    print(f"\n📊 Updating live status report...")
+    report_html = generate_status_report(results, model_root)
+    live_report_file = Path("runs/conductor_status_report.html")
+    live_report_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(live_report_file, 'w', encoding='utf-8') as f:
+        f.write(report_html)
+    
+    print(f"📈 Live report updated: {live_report_file}")
+    print(f"   Open in browser to see current red/orange/green status")
+
+# %% [markdown]
+# ## Results Summary
+
+# %%
+print(f"\n{'='*80}")
+print("CONDUCTOR EXECUTION SUMMARY")
+print(f"{'='*80}")
+
+successful = [r for r in results if r["status"] == "success"]
+failed = [r for r in results if r["status"] == "failed"]
+
+print(f"Total scenarios: {len(results)}")
+print(f"Successful: {len(successful)}")
+print(f"Failed: {len(failed)}")
+
+if successful:
+    total_time = sum(r["duration_minutes"] for r in successful)
+    avg_time = total_time / len(successful)
+    print(f"Total execution time: {total_time:.1f} minutes")
+    print(f"Average time per scenario: {avg_time:.1f} minutes")
+
+print(f"\nDetailed results:")
+for result in results:
+    status_icon = "✓" if result["status"] == "success" else "❌"
+    duration_str = f" ({result.get('duration_minutes', 0):.1f}min)" if result["status"] == "success" else ""
+    print(f"  {status_icon} {result['scenario']}{duration_str}")
+
+# Save results summary
+results_file = model_root / "conductor_results.json"
+with open(results_file, 'w') as f:
+    json.dump({
+        "execution_timestamp": datetime.now().isoformat(),
+        "base_config": base_config,
+        "scenario_dimensions": {dim: scenario_dimensions[dim] for dim in active_dimensions},
+        "results": results
+    }, f, indent=2, default=str)
+
+print(f"\nResults saved to: {results_file}")
+
+# %% [markdown]
+# ## Generate Detailed Status Report
+# 
+# Simple pattern: Add this after your conductor execution to get nested status reports
+
+# %%
+# Pattern for any conductor: Add these lines after build execution
+# The functions automatically analyze execution logs for status indicators
+
+# Generate final comprehensive report  
+report_html = generate_status_report(results, model_root)
+report_file = Path("runs/conductor_status_report.html")
+with open(report_file, 'w', encoding='utf-8') as f:
+    f.write(report_html)
+
+print(f"📊 Final status report generated: {report_file}")
+print(f"   Open in browser to see expandable build/flow status")
 
 # %%
