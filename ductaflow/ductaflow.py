@@ -762,9 +762,9 @@ def debug_flow(flow_path: str, execution_dir: Union[str, Path], config: Dict[str
 
             🚀 Add this to .vscode/launch.json:
             """)
-                print(json.dumps(launch_config, indent=2))
-                
-                print(f"""
+    print(json.dumps(launch_config, indent=2))
+    
+    print(f"""
             💡 Next steps:
             1. Set breakpoints in {flow_path}
             2. Press F5 in VS Code
