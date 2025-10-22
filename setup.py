@@ -20,8 +20,7 @@ setup(
     description="The pipeline framework that actually works in practice",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
