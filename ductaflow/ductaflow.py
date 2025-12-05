@@ -344,110 +344,55 @@ def display_config_summary(config: Dict[str, Any], flow_name: str = None):
 # %%
 def convert_notebook_to_html(notebook_path: Union[str, Path], 
                            html_path: Union[str, Path],
-                           template: str = 'lab') -> None:
+                           template: str = 'classic') -> None:
     """
     Convert executed notebook to HTML using nbconvert
     
     Args:
         notebook_path: Path to the executed .ipynb notebook
         html_path: Path where HTML file should be saved
-        template: nbconvert template to use ('lab', 'classic', 'reveal', etc.)
-                  Falls back to 'classic' if specified template is not available
+        template: nbconvert template to use ('classic', 'lab', 'reveal', etc.)
+                  Defaults to 'classic' which is universally available.
+                  Use 'lab' for JupyterLab-style output (requires: pip install jupyterlab)
     """
     try:
         import nbconvert
         from nbconvert import HTMLExporter
         
-        # Try to use the requested template, with fallback to 'classic'
-        fallback_templates = ['classic', 'basic'] if template != 'classic' else ['basic']
-        templates_to_try = [template] + fallback_templates
+        exporter = HTMLExporter()
+        exporter.template_name = template
+        (body, resources) = exporter.from_filename(str(notebook_path))
         
-        last_error = None
-        for template_name in templates_to_try:
-            try:
-                # Create HTML exporter with specified template
-                exporter = HTMLExporter()
-                exporter.template_name = template_name
-                
-                # Read and convert notebook
-                (body, resources) = exporter.from_filename(str(notebook_path))
-                
-                # Write HTML file
-                with open(html_path, 'w', encoding='utf-8') as f:
-                    f.write(body)
-                
-                # If we used a fallback template, inform user
-                if template_name != template:
-                    import warnings
-                    warnings.warn(
-                        f"Template '{template}' not found, using '{template_name}' instead. "
-                        f"Install JupyterLab for the 'lab' template: pip install jupyterlab",
-                        UserWarning
-                    )
-                
-                return  # Success, exit function
-                
-            except (ValueError, OSError) as e:
-                # Template not found error - try next fallback
-                if 'template' in str(e).lower() or 'not found' in str(e).lower():
-                    last_error = e
-                    continue
-                else:
-                    # Different error, re-raise
-                    raise
-        
-        # If we get here, all templates failed
-        raise RuntimeError(
-            f"HTML conversion failed: Template '{template}' not found and fallback templates "
-            f"also failed. Last error: {last_error}"
-        )
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(body)
             
     except ImportError:
         # Fallback to command line nbconvert if library import fails
-        fallback_templates = ['classic', 'basic'] if template != 'classic' else ['basic']
-        templates_to_try = [template] + fallback_templates
-        
-        last_error = None
-        for template_name in templates_to_try:
-            try:
-                result = subprocess.run([
-                    'jupyter', 'nbconvert', '--to', 'html', 
-                    '--template', template_name,
-                    '--output', str(html_path),
-                    str(notebook_path)
-                ], check=True, capture_output=True, text=True)
-                
-                # If we used a fallback template, inform user
-                if template_name != template:
-                    import warnings
-                    warnings.warn(
-                        f"Template '{template}' not found, using '{template_name}' instead. "
-                        f"Install JupyterLab for the 'lab' template: pip install jupyterlab",
-                        UserWarning
-                    )
-                
-                return  # Success, exit function
-                
-            except subprocess.CalledProcessError as e:
-                # Check if it's a template error
-                error_output = e.stderr.decode('utf-8', errors='ignore') if e.stderr else ''
-                if 'template' in error_output.lower() or 'not found' in error_output.lower():
-                    last_error = e
-                    continue
-                else:
-                    raise
-            except FileNotFoundError:
-                raise RuntimeError(
-                    "HTML conversion failed: 'jupyter nbconvert' command not found. "
-                    "Install nbconvert: pip install nbconvert"
-                )
-        
-        # If we get here, all templates failed
-        raise RuntimeError(
-            f"HTML conversion failed: Template '{template}' not found and fallback templates "
-            f"also failed. Last error: {last_error}"
-        )
+        subprocess.run([
+            'jupyter', 'nbconvert', '--to', 'html', 
+            '--template', template,
+            '--output', str(html_path),
+            str(notebook_path)
+        ], check=True, capture_output=True)
     except Exception as e:
+        error_msg = str(e).lower()
+        # If template error and not already 'classic', try classic as fallback
+        if ('template' in error_msg or 'not found' in error_msg or 'sub-directory' in error_msg) and template != 'classic':
+            try:
+                exporter = HTMLExporter()
+                exporter.template_name = 'classic'
+                (body, resources) = exporter.from_filename(str(notebook_path))
+                with open(html_path, 'w', encoding='utf-8') as f:
+                    f.write(body)
+                import warnings
+                warnings.warn(
+                    f"Template '{template}' not available, used 'classic' instead. "
+                    f"For 'lab' template: pip install jupyterlab",
+                    UserWarning
+                )
+                return
+            except Exception:
+                pass  # Fallback also failed, raise original error
         raise RuntimeError(f"HTML conversion failed: {e}")
 
 
