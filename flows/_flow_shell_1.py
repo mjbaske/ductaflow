@@ -9,7 +9,7 @@ config = {}
 
 # %% 
 # Ductaflow mandatory header
-from ductaflow import is_notebook_execution, load_cli_config, unpack_config, load_flow_dependency_pointer, display_config_summary
+from ductaflow import is_notebook_execution, load_cli_config, unpack_config, display_config_summary
 if not is_notebook_execution(): # CLI mode only
     config = load_cli_config('config/flows/_flow_shell_1.json', 'Flow Shell 1')
 # Standardized config unpacking - ductaflow fundamental

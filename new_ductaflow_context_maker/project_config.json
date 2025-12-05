@@ -1,0 +1,13 @@
+{
+  "project_name": "my_first_ductaflow_project",
+  "domain": "dummy description string for the project",
+  "ductaflow_location": "code/ductacore.py",
+  "first_build_name": "_build_shell",
+  "explain_build_level": true,
+  "first_build_execution_dir": "runs/{first_build_name}/{scenario_name}",
+  "first_flow_names": ["_flow_shell_1", "_flow_shell_2"],
+  "scenario_dimensions": {
+    "analysis_name": ["analysis_1","analysis_2","analysis_3"]
+  },
+  "description": "a dummy project to demonstrate the ductaflow context maker"
+}

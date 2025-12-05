@@ -13,7 +13,33 @@ import os
 import jupytext
 import logging
 import re
+import sys
+import io
 from typing import Dict, Any, Optional, Union
+
+# %%
+def setup_console_encoding():
+    """
+    Set up UTF-8 encoding for Windows console to support emojis in print statements.
+    
+    This fixes UnicodeEncodeError when printing emojis on Windows cmd.exe (which defaults
+    to cp1252 encoding). Logger messages don't need this fix as they write to UTF-8 files.
+    
+    Called automatically when ductaflow module is imported.
+    """
+    if sys.platform == 'win32':
+        try:
+            # Try to set UTF-8 encoding for stdout/stderr
+            # This allows emojis in print() statements to work on Windows
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        except (AttributeError, OSError):
+            # If stdout/stderr don't have a buffer (e.g., redirected output), skip
+            # This can happen in some environments, but it's safe to continue
+            pass
+
+# Set up console encoding immediately when module loads
+setup_console_encoding()
 
 # %%
 try:
@@ -25,9 +51,168 @@ except ImportError:
 # %% [markdown]
 # ## Simple Logging Approach
 # 
-# ductaflow uses simple print statements for logging.
-# All output automatically gets saved to .txt files in execution directories.
-# No complex logging setup needed - just print what you need to see.
+# ductaflow uses Python's logging module for consistent output capture.
+# All logger.info(), logger.warning(), logger.error() calls automatically get saved 
+# to .txt files in execution directories AND displayed in console.
+# 
+# **Usage**: In your flows, use the logger name that matches your flow:
+# ```python
+# import logging
+# logger = logging.getLogger("flow:my_flow_name")  # Use the flow name (auto-configured by run_notebook)
+# logger.info("This will be saved to the execution log file")
+# logger.warning("This warning will also be captured")
+# logger.error("This error will be captured")
+# ```
+# 
+# **Optional**: If you want some logs to propagate to parent (e.g., build/conductor):
+# ```python
+# from ductaflow import setup_execution_logging
+# logger2 = setup_execution_logging(
+#     execution_log, 
+#     f"flow:my_flow_name_propagate", 
+#     propagate=True
+# )
+# logger2.info("HELLO CALLER - Flow started")  # Shows in parent console too
+# ```
+# 
+# **How it works**: 
+# - `run_notebook()` automatically configures a logger named `"flow:{flow_filename}"`
+# - Each execution gets its own isolated logger (logs don't propagate by default)
+# - Console shows just messages (no level names = no pink/red colors)
+# - File shows full details (timestamps, levels, etc.)
+# - Works in both papermill (notebook) and CLI execution modes
+# - Always produces txt files regardless of execution mode
+
+# %% [markdown]
+# ## Utility Functions
+
+# %%
+def setup_execution_logging(log_file_path: Union[str, Path], 
+                          logger_name: str = "ductaflow",
+                          level: int = logging.INFO,
+                          propagate: bool = False) -> logging.Logger:
+    """
+    Set up logging for THIS execution.
+    Logs go to file AND console. By default, logs don't propagate to parent executions.
+    
+    Args:
+        log_file_path: Path where log file should be saved
+        logger_name: Name for the logger (default: "ductaflow")
+        level: Logging level (default: INFO)
+        propagate: If True, logs also propagate to parent loggers (default: False)
+        
+    Returns:
+        Configured logger instance
+        
+    Usage in flows:
+        # Standard logger (doesn't propagate to parent)
+        import logging
+        logger = logging.getLogger("flow:my_flow_name")  # Use the configured name
+        logger.info("This goes to this execution's log file only")
+        
+        # Optional: Logger that propagates to parent (e.g., for important status updates)
+        logger2 = setup_execution_logging(
+            execution_log, 
+            f"flow:my_flow_name_propagate", 
+            propagate=True
+        )
+        logger2.info("HELLO CALLER - Flow started")  # Shows in parent console too
+    """
+    import logging
+    from pathlib import Path
+    
+    log_file_path = Path(log_file_path)
+    log_file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Create a logger for THIS execution (not root)
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(level)
+    logger.handlers.clear()
+    logger.propagate = propagate  # Allow optional propagation
+    
+    # Simple formatter - just message for console (no level names = no pink)
+    console_formatter = logging.Formatter('%(message)s')
+    
+    # Detailed formatter for file (with timestamps, levels, etc.)
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # File handler - detailed format
+    file_handler = logging.FileHandler(log_file_path, mode='w', encoding='utf-8')
+    file_handler.setLevel(level)
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+    
+    # Console handler - simple format (no level names = no pink)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+# %%
+def _convert_config_to_python(config: Dict[str, Any]) -> str:
+    """
+    Convert a config dictionary to Python-compatible string format.
+    Handles camelCase to snake_case conversion and proper boolean formatting.
+    
+    Args:
+        config: Configuration dictionary to convert
+        
+    Returns:
+        Python-compatible string representation
+    """
+    def convert_key(key: str) -> str:
+        """Convert camelCase to snake_case"""
+        # Insert an underscore before any uppercase letter that follows a lowercase letter
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', key)
+        # Insert an underscore before any uppercase letter that follows a lowercase letter or number
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+    
+    def convert_value(value):
+        """Convert value to Python-compatible format"""
+        if isinstance(value, bool):
+            return 'True' if value else 'False'
+        elif isinstance(value, str):
+            return repr(value)  # Properly escape strings
+        elif isinstance(value, (int, float)):
+            return str(value)
+        elif isinstance(value, dict):
+            converted_dict = {convert_key(k): convert_value(v) for k, v in value.items()}
+            return converted_dict
+        elif isinstance(value, list):
+            return [convert_value(item) for item in value]
+        else:
+            return repr(value)
+    
+    # Convert the entire config
+    converted_config = {convert_key(k): convert_value(v) for k, v in config.items()}
+    
+    # Format as Python dictionary with proper formatting
+    def format_python_dict(d, indent=0):
+        """Format dictionary as Python code"""
+        if not isinstance(d, dict):
+            return str(d)
+        
+        lines = ["{"]
+        items = []
+        for k, v in d.items():
+            if isinstance(v, dict):
+                v_str = format_python_dict(v, indent + 1)
+            elif isinstance(v, list):
+                v_str = "[" + ", ".join(str(item) for item in v) + "]"
+            else:
+                v_str = str(v)
+            items.append(f'  {"  " * indent}"{k}": {v_str}')
+        
+        lines.append(",\n".join(items))
+        lines.append("  " * indent + "}")
+        return "\n".join(lines)
+    
+    return format_python_dict(converted_config)
 
 # %% [markdown]
 # ## Configuration Display Functions
@@ -167,36 +352,101 @@ def convert_notebook_to_html(notebook_path: Union[str, Path],
         notebook_path: Path to the executed .ipynb notebook
         html_path: Path where HTML file should be saved
         template: nbconvert template to use ('lab', 'classic', 'reveal', etc.)
+                  Falls back to 'classic' if specified template is not available
     """
     try:
         import nbconvert
         from nbconvert import HTMLExporter
         
-        # Create HTML exporter with specified template
-        exporter = HTMLExporter()
-        exporter.template_name = template
+        # Try to use the requested template, with fallback to 'classic'
+        fallback_templates = ['classic', 'basic'] if template != 'classic' else ['basic']
+        templates_to_try = [template] + fallback_templates
         
-        # Read and convert notebook
-        with open(notebook_path, 'r', encoding='utf-8') as f:
-            notebook_content = f.read()
+        last_error = None
+        for template_name in templates_to_try:
+            try:
+                # Create HTML exporter with specified template
+                exporter = HTMLExporter()
+                exporter.template_name = template_name
+                
+                # Read and convert notebook
+                (body, resources) = exporter.from_filename(str(notebook_path))
+                
+                # Write HTML file
+                with open(html_path, 'w', encoding='utf-8') as f:
+                    f.write(body)
+                
+                # If we used a fallback template, inform user
+                if template_name != template:
+                    import warnings
+                    warnings.warn(
+                        f"Template '{template}' not found, using '{template_name}' instead. "
+                        f"Install JupyterLab for the 'lab' template: pip install jupyterlab",
+                        UserWarning
+                    )
+                
+                return  # Success, exit function
+                
+            except (ValueError, OSError) as e:
+                # Template not found error - try next fallback
+                if 'template' in str(e).lower() or 'not found' in str(e).lower():
+                    last_error = e
+                    continue
+                else:
+                    # Different error, re-raise
+                    raise
         
-        (body, resources) = exporter.from_filename(str(notebook_path))
-        
-        # Write HTML file
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(body)
+        # If we get here, all templates failed
+        raise RuntimeError(
+            f"HTML conversion failed: Template '{template}' not found and fallback templates "
+            f"also failed. Last error: {last_error}"
+        )
             
     except ImportError:
         # Fallback to command line nbconvert if library import fails
-        try:
-            subprocess.run([
-                'jupyter', 'nbconvert', '--to', 'html', 
-                '--template', template,
-                '--output', str(html_path),
-                str(notebook_path)
-            ], check=True, capture_output=True)
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            raise RuntimeError(f"HTML conversion failed: {e}")
+        fallback_templates = ['classic', 'basic'] if template != 'classic' else ['basic']
+        templates_to_try = [template] + fallback_templates
+        
+        last_error = None
+        for template_name in templates_to_try:
+            try:
+                result = subprocess.run([
+                    'jupyter', 'nbconvert', '--to', 'html', 
+                    '--template', template_name,
+                    '--output', str(html_path),
+                    str(notebook_path)
+                ], check=True, capture_output=True, text=True)
+                
+                # If we used a fallback template, inform user
+                if template_name != template:
+                    import warnings
+                    warnings.warn(
+                        f"Template '{template}' not found, using '{template_name}' instead. "
+                        f"Install JupyterLab for the 'lab' template: pip install jupyterlab",
+                        UserWarning
+                    )
+                
+                return  # Success, exit function
+                
+            except subprocess.CalledProcessError as e:
+                # Check if it's a template error
+                error_output = e.stderr.decode('utf-8', errors='ignore') if e.stderr else ''
+                if 'template' in error_output.lower() or 'not found' in error_output.lower():
+                    last_error = e
+                    continue
+                else:
+                    raise
+            except FileNotFoundError:
+                raise RuntimeError(
+                    "HTML conversion failed: 'jupyter nbconvert' command not found. "
+                    "Install nbconvert: pip install nbconvert"
+                )
+        
+        # If we get here, all templates failed
+        raise RuntimeError(
+            f"HTML conversion failed: Template '{template}' not found and fallback templates "
+            f"also failed. Last error: {last_error}"
+        )
     except Exception as e:
         raise RuntimeError(f"HTML conversion failed: {e}")
 
@@ -264,16 +514,21 @@ def load_cli_config(default_config_path: str, description: str = 'Run ductaflow 
     with open(args.config, 'r') as f:
         config = json.load(f)
     
-    print(f"📊 Loaded config from {args.config}")
+    # Set up logging for CLI mode
+    flow_name = Path(sys.argv[0]).stem if sys.argv else "flow"
+    execution_log = Path(f"{flow_name}_execution_output.txt")
+    logger = setup_execution_logging(execution_log, "ductaflow")
+    
+    logger.info(f"📊 Loaded config from {args.config}")
     
     # Simple project root injection for CLI mode
     if '_project_root' not in config:
         config['_project_root'] = str(Path.cwd().resolve())
-    print(f"📁 Project context: {config['_project_root']}")
+    logger.info(f"📁 Project context: {config['_project_root']}")
     
     # Handle --no-execute mode
     if args.no_execute:
-        print("🔍 --no-execute mode: Setting up environment without execution")
+        logger.info("🔍 --no-execute mode: Setting up environment without execution")
         config['_no_execute'] = True
     
     # Change to output directory if specified (matches ductaflow execution_dir behavior)
@@ -281,80 +536,16 @@ def load_cli_config(default_config_path: str, description: str = 'Run ductaflow 
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         os.chdir(output_dir)
-        print(f"📁 Changed to execution directory: {output_dir}")
-        print(f"🚀 Running as CLI script in: {os.getcwd()}")
+        logger.info(f"📁 Changed to execution directory: {output_dir}")
+        logger.info(f"🚀 Running as CLI script in: {os.getcwd()}")
         
         # Save config to output directory for reproducibility
-        flow_name = Path(sys.argv[0]).stem if sys.argv else "flow"
         config_filename = f"{flow_name}_config.json"
         with open(config_filename, 'w') as f:
             json.dump(config, f, indent=2, default=str)
-        print(f"💾 Saved config to: {config_filename}")
-        
-        # Set up CLI execution output capture
-        execution_log = Path(f"{flow_name}_execution_output.txt")
-        
-        # Simple tee functionality for CLI mode
-        class CLITeeOutput:
-            def __init__(self, console, file_path):
-                self.console = console
-                self.file_path = file_path
-                self.file = open(file_path, 'w', encoding='utf-8')
-                
-                # Write CLI execution header
-                self.file.write(f"🚀 CLI Execution started: {datetime.now().isoformat()}\n")
-                self.file.write(f"📁 Working directory: {os.getcwd()}\n")
-                self.file.write(f"📋 Config: {config_filename}\n")
-                self.file.write("-" * 60 + "\n")
-                self.file.flush()
-            
-            def write(self, text):
-                self.console.write(text)
-                self.file.write(text)
-                self.file.flush()
-            
-            def flush(self):
-                self.console.flush()
-                self.file.flush()
-            
-            def close(self):
-                self.file.write("-" * 60 + "\n")
-                self.file.write(f"✅ CLI Execution completed: {datetime.now().isoformat()}\n")
-                self.file.close()
-        
-        # Set up output capture for CLI mode
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
-        
-        try:
-            # Create tee outputs
-            stdout_tee = CLITeeOutput(original_stdout, execution_log)
-            stderr_tee = CLITeeOutput(original_stderr, execution_log.with_suffix('.err.txt'))
-            
-            sys.stdout = stdout_tee
-            sys.stderr = stderr_tee
-            
-            print(f"📝 CLI output being captured to: {execution_log}")
-            
-            # Register cleanup function to restore stdout/stderr and close files
-            import atexit
-            def cleanup():
-                sys.stdout = original_stdout
-                sys.stderr = original_stderr
-                try:
-                    stdout_tee.close()
-                    stderr_tee.close()
-                except:
-                    pass
-            atexit.register(cleanup)
-            
-        except Exception as e:
-            # If tee setup fails, restore original and continue
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
-            print(f"⚠️ Could not set up CLI output capture: {e}")
+        logger.info(f"💾 Saved config to: {config_filename}")
     else:
-        print(f"🚀 Running as CLI script in: {os.getcwd()}")
+        logger.info(f"🚀 Running as CLI script in: {os.getcwd()}")
     
     return config
 
@@ -497,12 +688,21 @@ def run_notebook(notebook_file: Union[str, Path],
                 "name": kernel_name
             }
         
-        # Write temporary .ipynb file
-        temp_ipynb = source_notebook.with_suffix('.ipynb')
+        # Write temporary .ipynb file - resolve to absolute path before directory change
+        temp_ipynb = source_notebook.with_suffix('.ipynb').resolve()
         jupytext.write(nb, temp_ipynb)
         source_notebook = temp_ipynb
     
     try:       
+        # Determine project root BEFORE changing directories
+        if project_root:
+            project_root_path = str(Path(project_root).resolve())
+        elif '_project_root' not in config:
+            # Auto-detect project root - use current directory before any changes
+            project_root_path = str(Path.cwd().resolve())
+        else:
+            project_root_path = str(Path(config['_project_root']).resolve())
+        
         # Handle execution directory change if specified
         original_cwd = None
         if execution_dir:
@@ -514,11 +714,7 @@ def run_notebook(notebook_file: Union[str, Path],
         
         # Simple project root injection
         enhanced_config = config.copy()
-        if project_root:
-            enhanced_config['_project_root'] = str(Path(project_root).resolve())
-        elif '_project_root' not in enhanced_config:
-            # Auto-detect project root - simple version
-            enhanced_config['_project_root'] = str(Path.cwd().resolve())
+        enhanced_config['_project_root'] = project_root_path
         
         # Save enhanced config to output directory for reproducibility
         config_filename = f"{notebook_file.stem}_config.json"
@@ -536,16 +732,34 @@ def run_notebook(notebook_file: Union[str, Path],
             
             # Create a placeholder executed notebook for consistency
             placeholder_notebook = Path(f"./{notebook_file.stem}{output_suffix}.ipynb")
-            if source_notebook.suffix == '.py':
+            if notebook_file.suffix == '.py':  # Check original file, not converted one
                 # Convert to notebook format for interactive use
-                nb = jupytext.read(source_notebook)
+                nb = jupytext.read(notebook_file)  # Read original .py file
+                
+                # Inject config parameters into the notebook
+                # Find the config cell (usually the first cell with tags=["parameters"])
+                config_injected = False
+                for i, cell in enumerate(nb.cells):
+                    if cell.cell_type == 'code' and 'tags' in cell.metadata:
+                        if 'parameters' in cell.metadata.get('tags', []):
+                            # Convert config to Python-compatible format
+                            python_config = _convert_config_to_python(enhanced_config)
+                            cell.source = f"config = {python_config}"
+                            config_injected = True
+                            print(f"📋 Injected config into cell {i+1}")
+                            break
+                
+                if not config_injected:
+                    print("⚠️ No parameters cell found - config not injected")
+                
                 jupytext.write(nb, placeholder_notebook)
                 print(f"📓 Interactive notebook ready: {placeholder_notebook}")
             
             return placeholder_notebook
         
-        # Set up execution output capture
+        # Set up execution logging using our logging utility
         execution_log = Path(f"{notebook_file.stem}_execution_output.txt")
+        logger = setup_execution_logging(execution_log, f"flow:{notebook_file.stem}")
         
         # Set up papermill execution parameters
         execute_params = {
@@ -561,55 +775,25 @@ def run_notebook(notebook_file: Union[str, Path],
         if timeout is not None:
             execute_params["execution_timeout"] = timeout
         
-        # Capture stdout/stderr to execution log file
-        import sys
-        import io
-        from contextlib import redirect_stdout, redirect_stderr
-        
-        # Create a combined output capture
-        log_capture = io.StringIO()
-        
         try:
-            # Capture both stdout and stderr while still showing in console
-            with open(execution_log, 'w', encoding='utf-8') as log_file:
-                # Custom print function that writes to both console and file
-                original_stdout = sys.stdout
-                original_stderr = sys.stderr
+            # Log execution start
+            logger.info("🚀 Execution started")
+            logger.info(f"📁 Working directory: {os.getcwd()}")
+            logger.info(f"📋 Config: {config_filename}")
+            logger.info("-" * 60)
+            
+            # Execute notebook
+            pm.execute_notebook(
+                **execute_params,
+                log_output=True,  # Show progress in console
+            )
+            
+            logger.info("-" * 60)
+            logger.info("✅ Execution completed")
                 
-                class TeeOutput:
-                    def __init__(self, console, file):
-                        self.console = console
-                        self.file = file
-                    
-                    def write(self, text):
-                        self.console.write(text)
-                        self.file.write(text)
-                        self.file.flush()
-                    
-                    def flush(self):
-                        self.console.flush()
-                        self.file.flush()
-                
-                # Redirect both stdout and stderr to tee to both console and file
-                sys.stdout = TeeOutput(original_stdout, log_file)
-                sys.stderr = TeeOutput(original_stderr, log_file)
-                
-                # Write execution start to log
-                print(f"🚀 Execution started: {datetime.now().isoformat()}")
-                print(f"📁 Working directory: {os.getcwd()}")
-                print(f"📋 Config: {config_filename}")
-                print("-" * 60)
-                
-                # Execute notebook
-                pm.execute_notebook(**execute_params)
-                
-                print("-" * 60)
-                print(f"✅ Execution completed: {datetime.now().isoformat()}")
-                
-        finally:
-            # Always restore original stdout/stderr
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
+        except Exception as e:
+            logger.error(f"❌ Execution failed: {str(e)}")
+            raise
         
         print(f"✓ Successfully executed: {notebook_file}")
         
@@ -1009,6 +1193,8 @@ def generate_status_report(results: list, model_root: Union[str, Path]) -> str:
     """
     
     return html
+
+
 
 # %% [markdown]
 # ## Flow Dependency Management

@@ -42,14 +42,41 @@ Conductor → Build "Full Pipeline" → Flow "Data Prep"
 
 ## Logging
 
-**ductaflow logging philosophy**: Just use `print` statements. No custom logging libraries needed.
+**ductaflow logging philosophy**: Use Python's standard `logging` module. Always produces txt files regardless of execution mode.
 
 ### How It Works
 
-- **All `print` statements** automatically saved to `{flow_name}_execution_output.txt` files
-- **No distinction** between logs and command output - everything is captured
-- **Cross-platform**: Works on Windows, Linux, macOS without setup
-- **Simple text analysis**: Pipeline status determined by scanning `{flow_name}_execution_output.txt` of every build and flow
+- **Always creates log files**: Every execution produces `{flow_name}_execution_output.txt` 
+- **Works everywhere**: CLI mode, notebook mode, programmatic mode - same behavior
+- **Standard Python logging**: Use `logger.info()`, `logger.warning()`, `logger.error()`
+- **Dual output**: Messages appear in console AND saved to file automatically
+- **No setup required**: ductaflow configures logging automatically
+
+### Simple Usage Pattern
+
+**In your flows, replace `print()` with `logger.info()`:**
+
+```python
+# %% tags=["parameters"]
+config = {}
+
+# %%
+import logging
+logger = logging.getLogger(__name__)
+
+# Use logger instead of print statements
+logger.info("🚀 Starting data processing")
+logger.info(f"📊 Processing {len(data)} records")
+logger.warning("⚠️ Found missing values")
+logger.error("❌ Database connection failed")
+logger.info("✅ Processing completed")
+```
+
+**That's it!** Every execution automatically:
+- Creates `{flow_name}_execution_output.txt` with timestamped messages
+- Shows messages in console during execution  
+- Works in CLI, notebook, and programmatic modes
+- No configuration needed
 
 ### Status Detection
 
@@ -65,14 +92,13 @@ Conductor → Build "Full Pipeline" → Flow "Data Prep"
 
 ```python
 # These WILL be detected as warnings:
-print("⚠️ Warning: data issue")     # ⚠️ symbol
-print("Warning: missing file")      # "warning:" (any case)
-print("WARNING: deprecated")        # "WARNING:" 
-print("warning: low memory")        # "warning:" (lowercase)
+logger.warning("⚠️ Warning: data issue")     # ⚠️ symbol
+logger.warning("Warning: missing file")      # "warning:" (any case)
+logger.warning("WARNING: deprecated")        # "WARNING:" 
+logger.warning("warning: low memory")        # "warning:" (lowercase)
 
 # These will NOT be detected (beyond 15 characters):
-print("Processing data with warning messages inside")  # "warning" at position 20+
-df.to_csv("warning_analysis.csv")   # not at line start
+logger.info("Processing data with warning messages inside")  # "warning" at position 20+
 ```
 
 **Exact search patterns** (case-insensitive, first 15 chars only):
@@ -102,7 +128,7 @@ with open("runs/conductor_status_report.html", 'w') as f:
     f.write(report_html)
 ```
 
-**No logging setup needed** - just print what you need to see, and ductaflow handles the rest.
+**Key insight**: Just use `logger.info()` instead of `print()`. The logging happens automatically through ductaflow's execution functions.
 
 
 
@@ -135,24 +161,24 @@ with open("runs/conductor_status_report.html", 'w') as f:
 
 ### How It Works
 
-**Built into `run_notebook()`**: The ductaflow `run_notebook()` function automatically captures all stdout/stderr to `_execution_output.txt` files while still showing output in the console.
+**Built into `run_notebook()`**: The ductaflow `run_notebook()` function automatically sets up logging to `_execution_output.txt` files while still showing output in the console.
 
-**CLI mode**: When you run flows directly from command line, `load_cli_config()` captures output to `_cli_execution_output.txt`.
+**CLI mode**: When you run flows directly from command line, `load_cli_config()` sets up logging to `_execution_output.txt`.
 
 ```bash
 # Every flow execution automatically creates:
 runs/flow_name/instance_name/flow_name.ipynb        # Notebook artifact  
-runs/flow_name/instance_name/flow_name_execution_output.txt           # All print statements (via run_notebook)
+runs/flow_name/instance_name/flow_name_execution_output.txt           # All logger messages (via run_notebook)
 
 # CLI execution creates:
-./_cli_execution_output.txt                                  # All print statements (via CLI)
+./flow_name_execution_output.txt                                  # All logger messages (via CLI)
 ```
 
 ### No User Action Required
 
-- **Builds calling flows**: Output automatically captured via `run_notebook()`
-- **CLI execution**: Output automatically captured via `load_cli_config()`
-- **Print statements**: Just use `print()` - everything is captured
+- **Builds calling flows**: Logging automatically configured via `run_notebook()`
+- **CLI execution**: Logging automatically configured via `load_cli_config()`
+- **Logger statements**: Just use `logger.info()` - everything is captured
 - **Cross-platform**: Works on Windows, Linux, macOS
 
 ### Searching Logs
@@ -167,7 +193,7 @@ Select-String "⚠️" runs\**\*_execution_output.txt           # Find warnings
 python -c "import glob; [print(f) for f in glob.glob('runs/**/*_execution_output.txt', recursive=True) if '❌ Failed' in open(f).read()]"
 ```
 
-**Key insight**: Just use `print()` statements in your flows. The logging happens automatically through ductaflow's execution functions.
+**Key insight**: Just use `logger.info()` statements in your flows. The logging happens automatically through ductaflow's execution functions.
 
 ## 🚀 Quick Setup
 
