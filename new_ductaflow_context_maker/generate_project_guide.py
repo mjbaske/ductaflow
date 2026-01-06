@@ -133,6 +133,9 @@ Welcome! This guide will walk you through implementing {project_name} using duct
 {f'│   └── builds/' if explain_build_level else '│'}
 {f'│       └── {first_build_name}.json' if explain_build_level else ''}
 ├── conductor.py                    # Multi-scenario orchestrator
+├── session_outputs/               # Conductor daily logs + checkpoints
+│   ├── conductor_YYYYMMDD.txt     # Daily log file
+│   └── conductor_YYYYMMDD_HHMMSS_*.ipynb  # Optional checkpoints
 └── runs/                          # All execution results
     └── {first_build_name if explain_build_level and first_build_name else 'scenario_name'}/
 {scenario_dir_structure}
@@ -359,10 +362,9 @@ import json
 {import_statement}
 
 # %%
-# Set up logging for conductor
-from ductaflow import setup_execution_logging
-conductor_log = Path("conductor_execution_output.txt")
-logger = setup_execution_logging(conductor_log, "conductor")
+# Set up conductor logging (daily log + optional state capture)
+from ductaflow import setup_conductor_logging
+logger = setup_conductor_logging(session_outputs_dir="session_outputs")
 
 # %%
 # Base configuration
@@ -389,6 +391,9 @@ for scenario_config in scenario_dimensions["{first_dimension_name}"]:
     scenarios.append(scenario)
 
 logger.info(f"Generated {{len(scenarios)}} scenarios: {{[s['scenario_name'] for s in scenarios]}}")
+
+# Save state after building scenarios
+logger.info("Checkpoint: Scenarios built", extra={{'save_state': True}})
 
 # %%
 # Execute scenarios - calling flows directly
@@ -442,6 +447,9 @@ for scenario in scenarios:
         duration = (datetime.now() - start_time).total_seconds()
         logger.info(f"✅ Scenario completed: {{scenario_name}} | Duration: {{duration:.1f}}s")
         
+        # Save state after each scenario (optional checkpoint)
+        logger.info(f"Checkpoint: After scenario {{scenario_name}}", extra={{'save_state': True}})
+        
     except Exception as e:
         logger.error(f"❌ Scenario failed: {{scenario_name}} | Error: {{str(e)}}")
         raise
@@ -476,10 +484,9 @@ import logging
 {import_statement}
 
 # %%
-# Set up logging for conductor
-from ductaflow import setup_execution_logging
-conductor_log = Path("conductor_execution_output.txt")
-logger = setup_execution_logging(conductor_log, "conductor")
+# Set up conductor logging (daily log + optional state capture)
+from ductaflow import setup_conductor_logging
+logger = setup_conductor_logging(session_outputs_dir="session_outputs")
 
 # %%
 # Base configuration
@@ -678,7 +685,11 @@ if '_project_root' in config:
 
 ### 5. **Logging Approach**
 
-ductaflow uses Python's standard `logging` module. Every execution automatically creates `{{flow_name}}_execution_output.txt` files.
+ductaflow uses Python's standard `logging` module. There are two logging patterns depending on context:
+
+#### **Pattern 1: Auto-Configured Loggers (for Flows)**
+
+When flows are executed via `run_notebook()`, logging is automatically set up. You just get the logger:
 
 **Usage in flows:**
 ```python
@@ -695,11 +706,78 @@ logger.info("✅ Processing completed")
 ```
 
 **How it works:**
-- `run_notebook()` automatically configures a logger named `"flow:{{flow_filename}}"`
+- `run_notebook()` automatically calls `setup_execution_logging()` internally
+- Creates a logger named `"flow:{{flow_filename}}"` (e.g., `"flow:data_prep"`)
 - Logs go to both console (simple format) and file (detailed with timestamps)
-- Each execution gets its own isolated logger
+- File saved as `{{flow_name}}_execution_output.txt` in the execution directory
+- Each execution gets its own isolated logger (doesn't propagate to parent)
 - Works in both CLI and notebook execution modes
-- Always produces txt files regardless of execution mode
+
+#### **Pattern 2: Conductor Logging (Simple Session Capture)**
+
+Conductors are interactive notebooks. Use **conductor logging** for daily logs and optional notebook state capture:
+
+**Usage in conductors:**
+```python
+from ductaflow import setup_conductor_logging
+
+# Set up conductor logging (creates daily log: conductor_YYYYMMDD.txt)
+logger = setup_conductor_logging(session_outputs_dir="session_outputs")
+
+# Regular logging (goes to daily log file)
+logger.info("🚀 Starting conductor execution...")
+logger.info(f"Generated {{len(scenarios)}} scenarios")
+
+# Log with state capture (saves notebook as .ipynb and .html)
+logger.info("Checkpoint: After building scenarios", extra={{'save_state': True}})
+
+# After each scenario execution
+for scenario in scenarios:
+    run_notebook(...)
+    logger.info(f"Checkpoint: After {{scenario['name']}}", extra={{'save_state': True}})
+```
+
+**What conductor logging does:**
+- **Daily log files** - One file per day: `conductor_YYYYMMDD.txt` in `session_outputs/`
+- **Optional state capture** - Use `extra={{'save_state': True}}` to save notebook state
+- **Reuses existing tools** - Uses jupytext and convert_notebook_to_html (same as flows)
+- **Simple** - Just a bool flag, no complex API
+
+**When to use:**
+- **Conductors** - Daily logs + optional checkpoints after key steps
+- **Interactive work** - Capture notebook state at important moments
+- **Debugging** - Review what happened in today's session
+
+#### **Pattern 3: Manual Setup (for Custom Scripts)**
+
+For scripts that aren't conductors but need logging:
+
+**Usage:**
+```python
+from ductaflow import setup_execution_logging
+
+logger = setup_execution_logging("my_script.log", "my_script")
+logger.info("Processing...")
+```
+
+**When to use `setup_execution_logging()`:**
+- **Custom scripts** - Non-notebook scripts that need logging
+- **Propagating logs** - If you want logs to also show in parent loggers (set `propagate=True`)
+
+**Function signature:**
+```python
+setup_execution_logging(
+    log_file_path: Union[str, Path],  # Where to save the log file
+    logger_name: str = "ductaflow",    # Logger name
+    level: int = logging.INFO,         # Logging level
+    propagate: bool = False            # Whether to propagate to parent loggers
+) -> logging.Logger
+```
+
+**Key differences:**
+- **Flows**: Use `logging.getLogger("flow:flow_name")` - logger already configured by `run_notebook()`
+- **Conductors**: Use `setup_conductor_logging()` - session capture + logging
+- **Custom scripts**: Use `setup_execution_logging()` - basic logging only
 
 **Search logs:** `Select-String "❌ Failed" runs/**/*_execution_output.txt`
 

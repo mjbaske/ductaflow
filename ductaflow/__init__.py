@@ -25,7 +25,9 @@ from .ductaflow import (
 
     # Utilities
     load_cli_config,
-    is_notebook_execution
+    is_notebook_execution,
+    setup_execution_logging,
+    setup_conductor_logging,
 )
 
 __version__ = "0.3.0"
@@ -44,5 +46,7 @@ __all__ = [
     'generate_status_report',
     'convert_notebook_to_html',
     'load_cli_config',
-    'is_notebook_execution'
+    'is_notebook_execution',
+    'setup_execution_logging',
+    'setup_conductor_logging',
 ]

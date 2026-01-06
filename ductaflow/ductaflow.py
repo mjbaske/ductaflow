@@ -154,6 +154,109 @@ def setup_execution_logging(log_file_path: Union[str, Path],
     return logger
 
 # %%
+def _save_conductor_checkpoint(notebook_path: Optional[Union[str, Path]] = None,
+                               session_outputs_dir: Union[str, Path] = "session_outputs",
+                               label: Optional[str] = None) -> Optional[Path]:
+    """
+    Simple helper to save conductor notebook state. Reuses existing tools.
+    
+    Args:
+        notebook_path: Path to .py notebook (auto-detected if None)
+        session_outputs_dir: Directory to save checkpoints
+        label: Optional label for filename
+    
+    Returns:
+        Path to saved .ipynb file, or None if failed
+    """
+    try:
+        # Auto-detect notebook path
+        if notebook_path is None:
+            import inspect
+            frame = inspect.currentframe()
+            while frame:
+                frame = frame.f_back
+                if frame and '__file__' in frame.f_globals:
+                    potential = Path(frame.f_globals['__file__'])
+                    if potential.suffix == '.py':
+                        notebook_path = potential
+                        break
+        
+        if notebook_path is None:
+            # Try common names
+            for name in ['conductor.py']:
+                potential = Path.cwd() / name
+                if potential.exists():
+                    notebook_path = potential
+                    break
+        
+        if notebook_path is None:
+            return None
+        
+        notebook_path = Path(notebook_path)
+        session_outputs_dir = Path(session_outputs_dir)
+        session_outputs_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Convert .py to .ipynb and save
+        nb = jupytext.read(notebook_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = notebook_path.stem
+        safe_label = re.sub(r'[^\w\-_]', '_', str(label))[:30] if label else ""
+        filename = f"{base_name}_{timestamp}{'_' + safe_label if safe_label else ''}.ipynb"
+        ipynb_path = session_outputs_dir / filename
+        jupytext.write(nb, ipynb_path)
+        
+        # Export HTML using existing function
+        html_path = ipynb_path.with_suffix('.html')
+        convert_notebook_to_html(ipynb_path, html_path)
+        
+        return ipynb_path
+    except Exception:
+        return None
+
+# %%
+def setup_conductor_logging(session_outputs_dir: Union[str, Path] = "session_outputs",
+                            logger_name: str = "conductor",
+                            level: int = logging.INFO) -> logging.Logger:
+    """
+    Set up logging for conductors with daily log files and optional state capture.
+    
+    Args:
+        session_outputs_dir: Directory for session outputs (default: "session_outputs")
+        logger_name: Logger name (default: "conductor")
+        level: Logging level (default: INFO)
+    
+    Returns:
+        Logger instance
+    
+    Usage:
+        logger = setup_conductor_logging()
+        logger.info("Building scenarios...")
+        logger.info("Checkpoint", extra={'save_state': True})  # Saves notebook state
+    """
+    session_outputs_dir = Path(session_outputs_dir)
+    session_outputs_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Daily log file
+    today = datetime.now().strftime("%Y%m%d")
+    log_file = session_outputs_dir / f"conductor_{today}.txt"
+    
+    logger = setup_execution_logging(log_file, logger_name, level, propagate=False)
+    logger.session_outputs_dir = session_outputs_dir
+    
+    # Add handler that checks for save_state flag
+    class StateCaptureHandler(logging.Handler):
+        def emit(self, record):
+            if hasattr(record, 'save_state') and record.save_state:
+                _save_conductor_checkpoint(
+                    session_outputs_dir=session_outputs_dir,
+                    label=getattr(record, 'label', None) or record.getMessage()[:30]
+                )
+    
+    logger.addHandler(StateCaptureHandler())
+    
+    return logger
+
+# %%
 def _convert_config_to_python(config: Dict[str, Any]) -> str:
     """
     Convert a config dictionary to Python-compatible string format.
@@ -1128,12 +1231,5 @@ def generate_status_report(results: list, model_root: Union[str, Path]) -> str:
     """
     
     return html
-
-
-
-# %% [markdown]
-# ## Flow Dependency Management
-
-# %%
 
 
