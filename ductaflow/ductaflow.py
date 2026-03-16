@@ -833,6 +833,18 @@ def run_notebook(notebook_file: Union[str, Path],
             logger.error(f"❌ Execution failed: {str(e)}")
             raise
         
+        finally:
+            # Close all file handlers to release file locks (important on Windows)
+            # This prevents PermissionError when trying to delete execution directories
+            try:
+                for handler in logger.handlers[:]:
+                    if isinstance(handler, logging.FileHandler):
+                        handler.close()
+                        logger.removeHandler(handler)
+            except Exception:
+                # Ignore errors when closing handlers (e.g., if already closed)
+                pass
+        
         print(f"✓ Successfully executed: {notebook_file}")
         
         # Export to HTML if requested
